@@ -83,6 +83,10 @@ def create_hf_bert_mlm(
     if not pretrained_model_name:
         pretrained_model_name = "bert-base-uncased"
 
+    # Padding for divisibility by 64
+    if model_config.vocab_size % 64 != 0:
+        model_config.vocab_size += 64 - (model_config.vocab_size % 64)
+
     if use_pretrained:
         assert (
             transformers.AutoModelForMaskedLM.from_pretrained is not None

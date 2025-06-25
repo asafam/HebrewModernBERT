@@ -241,8 +241,8 @@ class FlexBertConfig(TransformersBertConfig):
                     f"Sliding window must be an even number and divisible by 64: {self.sliding_window=} {self.sliding_window % 64} {self.sliding_window % 2}"
                 )
         else:
-            if self.global_attn_every_n_layers != -1:
-                raise ValueError("global_attn_every_n_layers must be -1 when sliding_window is disabled")
+            # if self.global_attn_every_n_layers != -1:
+            #     raise ValueError("global_attn_every_n_layers must be -1 when sliding_window is disabled")
             if self.local_attn_rotary_emb_base != -1:
                 raise ValueError("local_attn_rotary_emb_base must be -1 when sliding_window is disabled")
             if self.local_attn_rotary_emb_dim is not None:

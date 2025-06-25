@@ -367,12 +367,17 @@ def build_model(cfg: DictConfig):
 
 
 def init_from_checkpoint(cfg: DictConfig, new_model: nn.Module):
-    print(f"Initializing model from checkpoint {cfg.checkpoint_run_name}")
-    checkpoint_cfg = Path(cfg.checkpoint_cfg)
-    assert checkpoint_cfg.exists(), f"Checkpoint config {checkpoint_cfg} does not exist"
-    pretrained_cfg = om.load(checkpoint_cfg)
+    print(f"Initializing model from checkpoint {cfg.checkpoint_run_name}/latest-rank0.pt")
+    # if type(checkpoint_cfg) == om.dictconfig.DictConfig:
+    #     checkpoint_cfg = Path(checkpoint_cfg)
+    #     pretrained_cfg = om.load(checkpoint_cfg)
+    # else:
+    checkpoint_cfg = cfg.checkpoint_cfg
+    pretrained_cfg = checkpoint_cfg
+    assert checkpoint_cfg, f"Checkpoint config {checkpoint_cfg} does not exist"
+    assert pretrained_cfg, f"Pretrained config {pretrained_cfg} does not exist"
 
-    pretrained_model = build_model(pretrained_cfg.model)
+    pretrained_model = build_model(pretrained_cfg)
     n_params = sum(p.numel() for p in pretrained_model.parameters())
 
     checkpoint_filepath = Path(cfg.checkpoint_load_path) / f"{cfg.checkpoint_run_name}" / "latest-rank0.pt"
@@ -385,10 +390,10 @@ def init_from_checkpoint(cfg: DictConfig, new_model: nn.Module):
 
     pretrained_model.load_state_dict(model_state)
 
-    if isinstance(pretrained_cfg.model.model_config, DictConfig):
-        model_config = OmegaConf.to_container(pretrained_cfg.model.model_config, resolve=True)
+    if isinstance(pretrained_cfg.model_config, DictConfig):
+        model_config = OmegaConf.to_container(pretrained_cfg.model_config, resolve=True)
 
-    pretrained_config = FlexBertConfig.from_pretrained(pretrained_cfg.model.pretrained_model_name, **model_config)
+    pretrained_config = FlexBertConfig.from_pretrained(pretrained_cfg.pretrained_model_name, **model_config)
 
     init_mlm_model_from_pretrained(
         config=pretrained_config,

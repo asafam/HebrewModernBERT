@@ -7,7 +7,7 @@ data_local: ./data/c4
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 128
-tokenizer_name: bert-base-uncased # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
+tokenizer_name: bert-base-uncased
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
@@ -126,15 +126,15 @@ progress_bar: false
 log_to_console: true
 console_log_interval: 1ba
 
-callbacks:
-  speed_monitor:
-    window_size: 500
-  lr_monitor: {}
-
 algorithms:
   gradient_clipping:
     clipping_type: norm
     clipping_threshold: 1.0
+
+callbacks:
+  speed_monitor:
+    window_size: 500
+  lr_monitor: {}
 
 # (Optional) W&B logging
 # loggers:

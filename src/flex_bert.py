@@ -278,6 +278,13 @@ def create_flex_bert_mlm(
         tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
     else:
         tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model_name)
+
+    if len(tokenizer) != config.vocab_size:
+        num_to_add = model.config.vocab_size - len(tokenizer)
+        assert num_to_add > 0, "Tokenizer is already as big or bigger than model vocab!"
+        new_tokens = [f"<DUMMY_{i}>" for i in range(num_to_add)]
+        tokenizer.add_tokens(new_tokens)
+    assert len(tokenizer) == config.vocab_size, f"Tokenizer new vocab size: f{len(tokenizer)}"
     tokenizer.model_max_length = config.max_position_embeddings # Set a new max token length
 
     metrics = [MaskedAccuracy(ignore_index=-100)]

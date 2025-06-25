@@ -3,23 +3,23 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_local: ./data/hebrewmodernbert/hebrew
+data_local: ./data/hebrewmodernbert/v20250428
 data_remote: # If blank, files must be present in data_local
 
-max_seq_len: 8192
+max_seq_len: 1024
 tokenizer_name: tokenizer # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
-# count_padding_tokens: false
+count_padding_tokens: false
 
 # Run Name
-run_name: modern-bert-base-phase-2-contextextension
+run_name: modern-bert-base-phase-0.1-pretrain
 
 # Model
 model:
   name: flex_bert # flex_bert, hf_bert, mosaic_bert
   recompute_metric_loss: false # recompute metric loss, use if passing label_smoothing to record non-label-smoothed loss as a metric
-  pretrained_model_name: bert-base-uncased #${tokenizer_name}
-  #pretrained_checkpoint: checkpoints/modern-bert-base-phase-0.1-pretrain/20250512_1506/ckpt/latest-rank0.pt # If set, will load from this checkpoint instead of training from scratch
+  pretrained_model_name: bert-base-uncased #answerdotai/ModernBERT-base
+  # pretrained_checkpoint: ${checkpoint_dir}/modern-bert-base-phase-0.1-pretrain/20250512_1506/ckpt/ep0-ba101328-rank0.pt # If set, will load from this checkpoint instead of training from scratch
   tokenizer_name: ${tokenizer_name}
 
   # FlexBERT 'base' generally uses the default architecture values from the Hugging Face BertConfig object
@@ -102,8 +102,10 @@ train_loader:
     shuffle: true
     mlm_probability: ${mlm_probability}
   drop_last: true
-  num_workers: 8
-  # sequence_packing: true
+  num_workers: 24
+  sequence_packing: true
+  batch_size_warmup_min_size: ${device_train_microbatch_size}
+  batch_size_warmup_tokens: 50_000_000_000tok
 
 eval_loader:
   name: text
@@ -116,18 +118,17 @@ eval_loader:
     shuffle: false
     mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
   drop_last: false
-  num_workers: 8
+  num_workers: 24
 
 # Optimization
 scheduler:
-  name: one_minus_sqrt
-  t_decay: 2_000_000_000_000tok # Total training duration in tokens
-  t_max: 2_000_000_000_000tok # Total training duration in tokens
+  name: linear_decay_with_warmup
+  t_warmup: 0.06dur # Warmup for 6% of the training duration ~50B tokens
   alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
 
 optimizer:
   name: decoupled_stableadamw
-  lr: 3.0e-4 # Peak learning rate
+  lr: 8.0e-4 # Peak learning rate
   betas:
   - 0.9
   - 0.98
@@ -138,12 +139,12 @@ optimizer:
 
 # algorithms:
 
-max_duration: 2_000_000_000_000tok
+max_duration: 850_000_000_000tok
 eval_interval: 10000ba
 
 # System
 seed: 17
-global_train_batch_size: 4608 
+global_train_batch_size: 4096 
 device_train_microbatch_size: 128
 # device_train_microbatch_size: auto
 precision: amp_bf16
@@ -169,7 +170,7 @@ callbacks:
 # (Optional) W&B logging
 loggers:
   wandb:
-    project: HebModernBERT-phase2
+    project: HebModernBERT-phase0.1
     entity: asafam
 
 # (Optional) Profiler
@@ -195,6 +196,4 @@ save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_n
 # e.g. './ckpt/latest-rank{rank}.pt' (local), or
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
-# load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250603_1331/ckpt/latest-rank0.pt"
-load_path: checkpoints/modern-bert-base-phase-1-contextextension/20250619_2241/ckpt/latest-rank0.pt
-
+# load_path: "checkpoints/modern-bert-base-phase-0.1-pretrain/20250518_1508/ckpt/latest-rank0.pt"

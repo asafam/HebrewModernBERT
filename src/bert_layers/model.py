@@ -1528,7 +1528,7 @@ def init_model_from_pretrained(
         (FlexBertAbsoluteEmbeddings, FlexBertSansPositionEmbeddings, FlexBertCompiledSansPositionEmbeddings),
     ), f"Unsupported embedding layer type: {type(new_model.embeddings)}"
 
-    tile_embedding(pretrained_model.embeddings.tok_embeddings, new_model.embeddings.tok_embeddings, mode=mode)
+    # tile_embedding(pretrained_model.embeddings.tok_embeddings, new_model.embeddings.tok_embeddings, mode=mode)
     if isinstance(pretrained_model.embeddings, FlexBertAbsoluteEmbeddings):
         tile_embedding(pretrained_model.embeddings.pos_embeddings, new_model.embeddings.pos_embeddings, mode=mode)
 
