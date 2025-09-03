@@ -3,7 +3,7 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_local: ./data/hebrewmodernbert/mixed/v20250428
+data_local: ./data/hebrewmodernbert/mixed/mixed_h50e75c25
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -197,5 +197,5 @@ save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_n
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250522_1841/ckpt/latest-rank0.pt"
-load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250525_1125/ckpt/latest-rank0.pt"
-
+# load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250525_1125/ckpt/latest-rank0.pt"
+load_path: "/home/nlp/achimoa/workspace/HebrewModernBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250709_1013/ckpt/latest-rank0.pt"

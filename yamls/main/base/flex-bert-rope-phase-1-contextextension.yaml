@@ -17,10 +17,9 @@ run_name: modern-bert-base-phase-1-contextextension
 # Model
 model:
   name: flex_bert # flex_bert, hf_bert, mosaic_bert
-  recompute_metric_loss: false # recompute metric loss, use if passing label_smoothing to record non-label-smoothed loss as a metric
   pretrained_model_name: bert-base-uncased #${tokenizer_name}
-  #pretrained_checkpoint: checkpoints/modern-bert-base-phase-0.1-pretrain/20250512_1506/ckpt/latest-rank0.pt # If set, will load from this checkpoint instead of training from scratch
   tokenizer_name: ${tokenizer_name}
+  disable_train_metrics: true # save some time by not computing metrics on the training set
 
   # FlexBERT 'base' generally uses the default architecture values from the Hugging Face BertConfig object
   # Note: if using the pretrained_checkpoint argument to create a model from an existing checkpoint, make sure
@@ -62,6 +61,8 @@ model:
     rotary_emb_base: 160000.0
     rotary_emb_scale_base: null
     rotary_emb_interleaved: false
+    local_attn_rotary_emb_base: 10000.0
+    local_attn_rotary_emb_dim: null
     allow_embedding_resizing: true
     hidden_act: gelu
     head_pred_act: gelu
@@ -102,7 +103,7 @@ train_loader:
     shuffle: true
     mlm_probability: ${mlm_probability}
   drop_last: true
-  num_workers: 8
+  num_workers: 4
   # sequence_packing: true
 
 eval_loader:
@@ -116,12 +117,13 @@ eval_loader:
     shuffle: false
     mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
   drop_last: false
-  num_workers: 8
+  num_workers: 4
 
 # Optimization
 scheduler:
   name: constant_with_warmup
-  t_warmup: 0.0dur # no warmup
+  t_warmup: 0tok
+  t_max: ${max_duration}
 
 optimizer:
   name: decoupled_stableadamw
@@ -136,7 +138,7 @@ optimizer:
 
 # algorithms:
 
-max_duration: 1_950_000_000_000tok
+max_duration: 1_100_000_000_000tok
 eval_interval: 10000ba
 
 # System
@@ -179,7 +181,7 @@ loggers:
 checkpoint_dir: "checkpoints"
 save_interval: 4000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: ${checkpoint_dir}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
 
 # (Optional) Load model from checkpopint
 # init_from_checkpoint:
@@ -194,5 +196,9 @@ save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_n
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250603_1331/ckpt/latest-rank0.pt"
-load_path: checkpoints/modern-bert-base-phase-0.2-pretrain/20250611_1431/ckpt/latest-rank0.pt
+# load_path: checkpoints/modern-bert-base-phase-0.2-pretrain/ckpt/latest-rank0.pt
+load_path: checkpoints/modern-bert-base-phase-1-contextextension/ckpt/latest-rank0.pt
 
+# autoresume: false
+# reset_time: true # restarts the scheduler, dataloaders, etc from step zero
+# restart_override: true # resets optimizer hyperparameters (LR, WD, etc), LR Scheduler, and training microbatch size from the checkpoint's values

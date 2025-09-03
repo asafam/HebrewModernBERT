@@ -121,13 +121,13 @@ eval_loader:
 # Optimization
 scheduler:
   name: one_minus_sqrt
-  t_decay: 2_000_000_000_000tok # Total training duration in tokens
-  t_max: 2_000_000_000_000tok # Total training duration in tokens
-  alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
+  alpha_f: 0.001
+  t_decay: ${max_duration}
+  t_max: ${max_duration}
 
 optimizer:
   name: decoupled_stableadamw
-  lr: 3.0e-4 # Peak learning rate
+  lr: 3e-4 # Peak learning rate
   betas:
   - 0.9
   - 0.98
@@ -138,8 +138,8 @@ optimizer:
 
 # algorithms:
 
-max_duration: 2_000_000_000_000tok
-eval_interval: 10000ba
+max_duration: 50_000_000_000tok
+eval_interval: 500ba
 
 # System
 seed: 17
@@ -179,9 +179,9 @@ loggers:
 
 # (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 4000ba
+save_interval: 1000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: ${checkpoint_dir}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
 
 # (Optional) Load model from checkpopint
 # init_from_checkpoint:
@@ -196,5 +196,10 @@ save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_n
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250603_1331/ckpt/latest-rank0.pt"
-load_path: checkpoints/modern-bert-base-phase-1-contextextension/20250619_2241/ckpt/latest-rank0.pt
+# load_path: checkpoints/modern-bert-base-phase-1-contextextension/ckpt/latest-rank0.pt
+load_path: checkpoints/modern-bert-base-phase-2-contextextension/ckpt/latest-rank0.pt
+
+# autoresume: false
+# reset_time: true # restarts the scheduler, dataloaders, etc from step zero
+# restart_override: true # resets optimizer hyperparameters (LR, WD, etc), LR Scheduler, and training microbatch size from the checkpoint's values
 
