@@ -148,7 +148,7 @@ eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); 
 # System
 seed: 17
 global_train_batch_size: 4608 
-device_train_microbatch_size: 128
+device_train_microbatch_size: 288 # measured fit/throughput on H200 (auto-chosen in the smoke probe); fixed so requeues don't re-search
 # device_train_microbatch_size: auto
 precision: amp_bf16
 

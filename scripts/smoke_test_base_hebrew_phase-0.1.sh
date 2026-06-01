@@ -1,17 +1,18 @@
 #!/bin/bash -i
-# Smoke test + THROUGHPUT PROBE for the phase-0.1 (mixed-corpus) setup, before the full run.
+# Packing probe for phase-0.1: measure REAL-token throughput with sequence packing on,
+# and confirm packing trains correctly (loss down + MaskedAccuracy up) before the long run.
 #
-# Validates end-to-end that the model builds with the rebuilt tokenizer + curriculum
-# (vocab 100000->100032, pad=0), trains, evals, and checkpoints. AND measures the REAL
-# tokens/sec on the H200s at realistic settings — `device_train_microbatch_size=auto`
-# lets Composer pick the largest microbatch that fits (a 150M model badly under-uses an
-# H200 at mb=128, so this is also our main throughput lever). torch.compile stays on so
-# the rate is representative. ~60 steps; a few minutes after compile/warmup.
+# Why: without packing the loader pads each ~392-token doc to 1024 (~60% padding) and the
+# budget counts it -> the model would see far fewer real tokens than intended. Packing fills
+# each 1024 sequence with real tokens from multiple docs (ModernBERT's approach). The data is
+# uncompressed so NoStreamingDataset + packing just turn on.
 #
-# After it runs, read the throughput from the log (or the offline W&B run):
-#   grep -iE "tokens_per_sec|throughput|MicrobatchSize|device_train_microbatch" .slurm/logs/hmb-smoke_*.out
-# Use that measured tokens/sec (x the #GPUs) to size the real run.
+# microbatch=auto: each packed sequence is now ~1024 real tokens (~2.6x denser), so the old
+# 288 will likely OOM — let Composer find the fit. compile OFF so auto doesn't recompile per
+# trial (that was the earlier "hang") and starts in seconds.
 #
+# Judge it on: (a) loss decreases + MaskedAccuracy climbs (packing masking is correct),
+#              (b) throughput/tokens_per_sec (now ~all real) vs the ~174K real-tok/s baseline.
 # Run via slurm: sbatch .slurm/jobs/smoke_base_hebrew_phase-0.1.slurm
 
 echo "Activating Conda environment: bert24"
@@ -19,17 +20,14 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate bert24
 cd /home/nlp/achimoa/workspace/HebrewModernBERT
 
-export WANDB_MODE=offline   # keep the probe out of the W&B project / no login needed
+export WANDB_MODE=offline
 
-# NOTE: torch.compile + microbatch=auto fight each other (Composer recompiles for every
-# microbatch size it tries -> looks hung for many minutes). So the probe uses a FIXED
-# microbatch and compile OFF -> starts in seconds. Measured rate here is ~10-15% BELOW the
-# real run (which has compile ON), so it's a conservative floor. Bump microbatch (256 ->
-# 512/1024) and re-run to find the throughput sweet spot for the H200.
 python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretrain.yaml \
-    run_name=smoke-test-phase-0.1 \
+    run_name=smoke-packing-phase-0.1 \
     max_duration=60ba \
-    device_train_microbatch_size=256 \
+    train_loader.dataset.streaming=false \
+    train_loader.sequence_packing=true \
+    device_train_microbatch_size=auto \
     model.model_config.compile_model=false \
     eval_interval=1000ba \
     save_interval=1000ba \
@@ -37,4 +35,4 @@ python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretr
     autoresume=false \
     log_to_console=true \
     console_log_interval=10ba
-echo "Probe done. Check the log for throughput (tokens/sec) over the last steps."
+echo "Packing probe done. Check: loss decreasing + MaskedAccuracy rising, and throughput/tokens_per_sec (now ~all real) vs ~174K baseline."
