@@ -142,6 +142,7 @@ optimizer:
 
 max_duration: 850_000_000_000tok
 eval_interval: 10000ba
+eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); ~100k samples/eval keeps the loss curve fast
 
 # System
 seed: 17
