@@ -141,7 +141,7 @@ optimizer:
 
 # algorithms:
 
-max_duration: 200_000_000_000tok # ~1 epoch over the ~193B-token Hebrew corpus (specialization). Tunable.
+max_duration: 100_000_000_000tok # 100B REAL tokens (count_padding_tokens=false) ~ 0.5 epoch of the ~193B Hebrew corpus; ~6.5 days on 2xH200. Tunable.
 eval_interval: 10000ba
 eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); ~100k samples/eval keeps the loss curve fast
 
