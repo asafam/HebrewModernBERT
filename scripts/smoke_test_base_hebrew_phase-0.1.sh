@@ -24,5 +24,6 @@ python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretr
     eval_subset_num_batches=10 \
     save_interval=150ba \
     save_num_checkpoints_to_keep=1 \
+    autoresume=false \
     model.model_config.compile_model=false
 echo "Smoke test finished. Checkpoint -> checkpoints/hebrew/smoke-test-phase-0.1/ckpt"

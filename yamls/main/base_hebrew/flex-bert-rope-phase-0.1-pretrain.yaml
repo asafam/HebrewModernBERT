@@ -201,3 +201,5 @@ save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250522_1841/ckpt/latest-rank0.pt"
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250525_1125/ckpt/latest-rank0.pt"
 # load_path:  # phase 0.1 trains from scratch — leave unset
+
+autoresume: true # on requeue, resume from the latest checkpoint in save_folder; first start = from scratch
