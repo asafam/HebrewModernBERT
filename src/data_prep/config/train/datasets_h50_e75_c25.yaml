@@ -1,0 +1,20 @@
+# Pretraining mix: ~50B Hebrew (MAFAT) + 75B English + 25B code (Dolma).
+# Token budgets are realized by prepare_dolma_dataset.py (the corpus_sampled_*.jsonl
+# files); this config only assembles + splits them.
+# NOTE: validation 0.1 (~10% held out) is faithful to the original but large for a
+# pretraining val set — consider reducing (e.g. 0.005) to train on more data.
+- name: mafat
+  type: jsonl
+  dir: data/mafat/hebrew/sources   # PRIVATE — never published (see ../README.md)
+  exclude_files: [.DS_Store]
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: dolma_english
+  type: jsonl
+  files: [data/dolma/corpus_sampled_eng_75B.jsonl]
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: dolma_code
+  type: jsonl
+  files: [data/dolma/corpus_sampled_code_25B.jsonl]
+  split_ratio: {train: 0.9, validation: 0.1}

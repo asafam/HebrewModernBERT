@@ -1,0 +1,24 @@
+# Corpus for *tokenizer* training (~1M docs): 500K Hebrew (MAFAT) + 250K English +
+# 250K code (Dolma). Build with build_datasets.py --format txt, then train with
+# tokenizer/train_tokenizer.py. The "_1M_" in the tokenizer name = 500K+250K+250K.
+- name: mafat
+  type: jsonl
+  dir: data/mafat/hebrew/sources   # PRIVATE — never published
+  exclude_files: [.DS_Store]
+  limit: 500000
+
+- name: dolma_text
+  type: hf
+  args: {path: allenai/dolma, name: v1_7, split: train, streaming: false, trust_remote_code: true}
+  filter_criteria:
+    - {source: books}
+    - {source: wikipedia}
+    - {source: news}
+  limit: 250000
+
+- name: dolma_code
+  type: hf
+  args: {path: allenai/dolma, name: v1_7, split: train, streaming: false, trust_remote_code: true}
+  filter_criteria:
+    - {source: github}
+  limit: 250000

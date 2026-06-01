@@ -1,0 +1,13 @@
+# Pretraining mix: ~50B Hebrew (MAFAT) + a single combined 50B English+code Dolma sample.
+# (Note the e25c25 label: the non-Hebrew half is one pre-combined corpus_sampled_50B.jsonl,
+# not separate english/code files.)
+- name: mafat
+  type: jsonl
+  dir: data/mafat/hebrew/sources   # PRIVATE — never published
+  exclude_files: [.DS_Store]
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: dolma
+  type: jsonl
+  files: [data/dolma/corpus_sampled_50B.jsonl]
+  split_ratio: {train: 0.9, validation: 0.1}
