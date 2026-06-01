@@ -123,7 +123,7 @@ eval_loader:
 # Optimization
 scheduler:
   name: constant_with_warmup
-  t_warmup: 0tok
+  t_warmup: 2_000_000_000tok # re-warmup entering context-extension: LR drops 8e-4 -> 3e-4 and seq_len 1024 -> 8192; ramp to avoid a loss spike
   t_max: ${max_duration}
 
 optimizer:
