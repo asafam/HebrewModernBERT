@@ -33,6 +33,8 @@ python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretr
     train_loader.dataset.streaming=false \
     train_loader.sequence_packing=true \
     train_loader.batch_size_warmup_min_size=null \
+    train_loader.packing_buffer_size=2000 \
+    train_loader.num_workers=4 \
     device_train_microbatch_size=96 \
     model.model_config.compile_model=false \
     eval_interval=1000ba \
