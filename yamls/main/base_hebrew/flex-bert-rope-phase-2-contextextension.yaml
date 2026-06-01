@@ -3,8 +3,8 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_corpus: hebrew
-data_local: ./data/hebrewmodernbert/${data_corpus}
+run_group: base # checkpoint namespace shared across phases
+data_local: ./data/hebrewmodernbert/hebrew # DEFERRED phase (context extension to 8192) — budget/schedule need review before use
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 8192
@@ -183,7 +183,7 @@ loggers:
 checkpoint_dir: "checkpoints"
 save_interval: 1000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/base/<run_name>/ckpt
 
 # (Optional) Load model from checkpopint
 # init_from_checkpoint:
@@ -198,7 +198,7 @@ save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250603_1331/ckpt/latest-rank0.pt"
-load_path: ${checkpoint_dir}/${data_corpus}/modern-bert-base-phase-1-contextextension/ckpt/latest-rank0.pt
+load_path: ${checkpoint_dir}/${run_group}/modern-bert-base-phase-1-contextextension/ckpt/latest-rank0.pt
 
 autoresume: true # on requeue, resume from latest checkpoint in save_folder; first start loads load_path (previous phase)
 # reset_time: true # restarts the scheduler, dataloaders, etc from step zero

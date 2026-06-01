@@ -3,8 +3,8 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_corpus: hebrew
-data_local: ./data/hebrewmodernbert/${data_corpus}
+run_group: base # checkpoint namespace shared across phases (the chain lives under checkpoints/base/)
+data_local: ./data/hebrewmodernbert/hebrew # phase 0.2: SPECIALIZE on Hebrew-only (continued pretraining)
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -123,9 +123,10 @@ eval_loader:
 
 # Optimization
 scheduler:
-  name: linear_decay_with_warmup
-  t_warmup: 0.06dur # Warmup for 6% of the training duration ~50B tokens
-  alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
+  name: warmup_stable_decay # WSD: brief re-warm (data switched to Hebrew) -> stable -> final anneal. Growable: resume the pre-anneal ckpt to extend.
+  t_warmup: 0.02dur
+  t_decay: 0.1dur # final 10% anneal to alpha_f
+  alpha_f: 0.02
 
 optimizer:
   name: decoupled_stableadamw
@@ -140,7 +141,7 @@ optimizer:
 
 # algorithms:
 
-max_duration: 850_000_000_000tok
+max_duration: 200_000_000_000tok # ~1 epoch over the ~193B-token Hebrew corpus (specialization). Tunable.
 eval_interval: 10000ba
 eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); ~100k samples/eval keeps the loss curve fast
 
@@ -184,7 +185,7 @@ loggers:
 checkpoint_dir: "checkpoints"
 save_interval: 4000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/base/<run_name>/ckpt
 
 # (Optional) Load model from checkpopint
 # init_from_checkpoint:
@@ -199,7 +200,8 @@ save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250603_1331/ckpt/latest-rank0.pt"
-load_path: ${checkpoint_dir}/${data_corpus}/modern-bert-base-phase-0.1-pretrain/ckpt/latest-rank0.pt
+load_path: ${checkpoint_dir}/${run_group}/modern-bert-base-phase-0.1-pretrain/ckpt/latest-rank0.pt
+load_weights_only: true # start phase 0.2 as a fresh specialization run from phase-0.1 WEIGHTS (reset optimizer/schedule/step); autoresume still resumes 0.2's own checkpoint on requeue
 
 autoresume: true # on requeue, resume from latest checkpoint in save_folder; first start loads load_path (previous phase)
 # reset_time: true # restarts the scheduler, dataloaders, etc from step zero [**ENABLE ONLY IF YOU WANT TO START FROM SCRATCH**]

@@ -3,8 +3,8 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_corpus: hebrew
-data_local: ./data/hebrewmodernbert/${data_corpus}
+run_group: base # checkpoint namespace shared across phases (the chain lives under checkpoints/base/)
+data_local: ./data/hebrewmodernbert/mixed/mixed_h50e75c25 # phase 0.1: BROAD pretraining on the mixed Hebrew+English+code corpus
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -123,9 +123,9 @@ eval_loader:
 
 # Optimization
 scheduler:
-  name: linear_decay_with_warmup
-  t_warmup: 0.06dur # Warmup for 6% of the training duration ~50B tokens
-  alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
+  name: constant_with_warmup # stable broad pretraining (feeds phase 0.2); freely extendable, no anneal to redo
+  t_warmup: 0.06dur
+  t_max: ${max_duration}
 
 optimizer:
   name: decoupled_stableadamw
@@ -140,7 +140,7 @@ optimizer:
 
 # algorithms:
 
-max_duration: 850_000_000_000tok
+max_duration: 200_000_000_000tok # ~1.3 epochs over the ~150B-token mixed corpus (broad pretraining; feeds phase 0.2). Tunable.
 eval_interval: 10000ba
 eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); ~100k samples/eval keeps the loss curve fast
 
@@ -184,7 +184,7 @@ loggers:
 checkpoint_dir: "checkpoints"
 save_interval: 4000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/base/<run_name>/ckpt
 
 # (Optional) Load model from checkpopint
 # init_from_checkpoint:
