@@ -21,14 +21,20 @@ cd /home/nlp/achimoa/workspace/HebrewModernBERT
 
 export WANDB_MODE=offline   # keep the probe out of the W&B project / no login needed
 
+# NOTE: torch.compile + microbatch=auto fight each other (Composer recompiles for every
+# microbatch size it tries -> looks hung for many minutes). So the probe uses a FIXED
+# microbatch and compile OFF -> starts in seconds. Measured rate here is ~10-15% BELOW the
+# real run (which has compile ON), so it's a conservative floor. Bump microbatch (256 ->
+# 512/1024) and re-run to find the throughput sweet spot for the H200.
 python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretrain.yaml \
     run_name=smoke-test-phase-0.1 \
     max_duration=60ba \
-    device_train_microbatch_size=auto \
+    device_train_microbatch_size=256 \
+    model.model_config.compile_model=false \
     eval_interval=1000ba \
     save_interval=1000ba \
     save_num_checkpoints_to_keep=1 \
     autoresume=false \
     log_to_console=true \
     console_log_interval=10ba
-echo "Probe done. Check the log for tokens_per_sec and the auto-chosen microbatch size."
+echo "Probe done. Check the log for throughput (tokens/sec) over the last steps."
