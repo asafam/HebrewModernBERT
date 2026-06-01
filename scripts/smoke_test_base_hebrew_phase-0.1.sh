@@ -22,12 +22,18 @@ cd /home/nlp/achimoa/workspace/HebrewModernBERT
 
 export WANDB_MODE=offline
 
+# Packing needs a CONCRETE microbatch (the packer computes packed shapes from it, so
+# 'auto' can't work), and packed sequences are ~2.6x denser than unpacked, so start
+# conservative at 96 (unpacked auto-fit was 288). batch_size_warmup_min_size=null disables
+# the batch-size warmup (which otherwise crashes on the string microbatch AND would run the
+# probe at a tiny non-representative batch).
 python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretrain.yaml \
     run_name=smoke-packing-phase-0.1 \
     max_duration=60ba \
     train_loader.dataset.streaming=false \
     train_loader.sequence_packing=true \
-    device_train_microbatch_size=auto \
+    train_loader.batch_size_warmup_min_size=null \
+    device_train_microbatch_size=96 \
     model.model_config.compile_model=false \
     eval_interval=1000ba \
     save_interval=1000ba \
