@@ -17,7 +17,7 @@ python ./src/convert_to_hf.py \
     --eos-token-id 3 \
     --cls-token-id 2 \
     --sep-token-id 3 \
-    --pad-token-id 100001 \
+    --pad-token-id 0 \
     --mask-token-id 4 \
     --max-length 1024 \
     --vocab-size 100032
