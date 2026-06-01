@@ -3,8 +3,8 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_corpus: mixed_h50e25c25
-data_local: data/hebrewmodernbert/mixed/${data_corpus}
+data_corpus: hebrew
+data_local: ./data/hebrewmodernbert/${data_corpus}
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -13,7 +13,7 @@ mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 # count_padding_tokens: false
 
 # Run Name
-run_name: modern-bert-large-phase-0.1-pretrain
+run_name: modern-bert-base-hebrew-phase-0.1-pretrain
 
 # Model
 model:
@@ -29,10 +29,10 @@ model:
   model_config:
     # architectures: ["ModernBertForMaskedLM"]
     # model_type: modernbert
-    num_attention_heads: 16
-    num_hidden_layers: 28
-    hidden_size: 1024
-    intermediate_size: 2624
+    num_attention_heads: 12 # bert-base default
+    num_hidden_layers: 22 # bert-base default
+    hidden_size: 768
+    intermediate_size: 1152
     layer_norm_eps: 1e-5
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
@@ -106,7 +106,7 @@ train_loader:
   num_workers: 8
   # sequence_packing: true
   batch_size_warmup_min_size: ${device_train_microbatch_size}
-  batch_size_warmup_tokens: 10_000_000_000tok
+  batch_size_warmup_tokens: 50_000_000_000tok
 
 eval_loader:
   name: text
@@ -129,7 +129,7 @@ scheduler:
 
 optimizer:
   name: decoupled_stableadamw
-  lr: 5.0e-4 # Peak learning rate
+  lr: 8.0e-4 # Peak learning rate
   betas:
   - 0.9
   - 0.98
@@ -171,7 +171,7 @@ callbacks:
 # (Optional) W&B logging
 loggers:
   wandb:
-    project: HebModernBERT-large-phase0.1
+    project: HebModernBERT-phase0.1
     entity: asafam
 
 # (Optional) Profiler
@@ -181,7 +181,7 @@ loggers:
 
 # (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 500ba
+save_interval: 4000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
 save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
 
@@ -198,9 +198,5 @@ save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250522_1841/ckpt/latest-rank0.pt"
-load_path: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt/latest-rank0.pt
-
-# autoresume: false
-# reset_time: true # restarts the scheduler, dataloaders, etc from step zero
-# restart_override: true # resets optimizer hyperparameters (LR, WD, etc), LR Scheduler, and training microbatch size from the checkpoint's values
-
+# load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250525_1125/ckpt/latest-rank0.pt"
+load_path: "${checkpoint_dir}/${data_corpus}/${run_name}/ckpt/latest-rank0.pt"
