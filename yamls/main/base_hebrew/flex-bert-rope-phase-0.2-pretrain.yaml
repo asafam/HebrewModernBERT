@@ -98,6 +98,7 @@ train_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: train
+    streaming: false # NoStreamingDataset: local MDS is uncompressed; faster than StreamingDataset for local data and avoids its multi-GPU first-batch hang
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
@@ -114,6 +115,7 @@ eval_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: validation
+    streaming: false
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: false
