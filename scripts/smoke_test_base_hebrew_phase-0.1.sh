@@ -25,6 +25,7 @@ python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-0.1-pretr
     save_interval=1000ba \
     save_num_checkpoints_to_keep=1 \
     autoresume=false \
+    save_overwrite=true \
     model.model_config.compile_model=false \
     log_to_console=true \
     console_log_interval=10ba
