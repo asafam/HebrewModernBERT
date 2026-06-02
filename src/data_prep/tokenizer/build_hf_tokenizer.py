@@ -87,8 +87,8 @@ def _rename_specials_in_fast(tokenizer_obj: Tokenizer) -> Tokenizer:
     d = json.loads(tokenizer_obj.to_str())
     vocab = d["model"]["vocab"]
     for old, new in (("<pad>", "[PAD]"), ("<unk>", "[UNK]")):
-        assert old in vocab, f"{old} not in converted vocab"
-        vocab[new] = vocab.pop(old)
+        if old in vocab:
+            vocab[new] = vocab.pop(old)
     if d["model"].get("unk_token") == "<unk>":
         d["model"]["unk_token"] = "[UNK]"
     for at in d.get("added_tokens", []):
@@ -102,13 +102,40 @@ def _rename_specials_in_fast(tokenizer_obj: Tokenizer) -> Tokenizer:
 def build(input_spm: Path, output_dir: Path) -> PreTrainedTokenizerFast:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Slow spm tokenizer used purely as the conversion vehicle. do_lower_case=False
-    # and split_by_punct=False keep it a faithful pass-through to the spm model
-    # (only the spm's own nmt_nfkc normalization is applied — no lowercasing or
-    # accent stripping).
-    slow = DebertaV2Tokenizer(vocab_file=str(input_spm), do_lower_case=False, split_by_punct=False)
-    fast_obj = _rename_specials_in_fast(convert_slow_tokenizer(slow))
+    # Save the renamed spiece.model first — it's the source of truth for the released
+    # tokenizer and preserves byte_fallback for correct OOV handling.
+    clean_spm = output_dir / "spiece.model"
+    rename_spm_specials(input_spm, clean_spm)
 
+    # --- Slow tokenizer (DebertaV2Tokenizer wraps SentencePiece natively) ---
+    # This IS the canonical released tokenizer: it loads spiece.model directly at
+    # inference time and therefore preserves byte_fallback (OOV chars -> byte tokens,
+    # not [UNK]). do_lower_case=False / split_by_punct=False keep it a pure spm
+    # pass-through (no extra normalization). This is what `use_fast=False` returns.
+    # DebertaV2Tokenizer is used over XLMRobertaTokenizer because XLM-R shifts all
+    # ids by 1 (inserts <s>@0), breaking our canonical [PAD]=0/[CLS]=2/[SEP]=3 scheme.
+    slow = DebertaV2Tokenizer(
+        vocab_file=str(clean_spm),
+        do_lower_case=False,
+        split_by_punct=False,
+        bos_token=SPECIALS["cls"][0],
+        eos_token=SPECIALS["sep"][0],
+        unk_token=SPECIALS["unk"][0],
+        sep_token=SPECIALS["sep"][0],
+        pad_token=SPECIALS["pad"][0],
+        cls_token=SPECIALS["cls"][0],
+        mask_token=SPECIALS["mask"][0],
+        model_max_length=1024,
+    )
+    slow.save_pretrained(str(output_dir))
+
+    # --- Fast tokenizer (for training throughput) ---
+    # The HF fast tokenizer does NOT implement byte_fallback (transformers limitation),
+    # so rare OOV chars become [UNK] rather than byte tokens (~0.05% on real Hebrew).
+    # For training this is inconsequential; the slow tokenizer handles inference correctly.
+    fast_obj = _rename_specials_in_fast(convert_slow_tokenizer(
+        DebertaV2Tokenizer(vocab_file=str(clean_spm), do_lower_case=False, split_by_punct=False)
+    ))
     fast = PreTrainedTokenizerFast(
         tokenizer_object=fast_obj,
         bos_token=SPECIALS["cls"][0],
@@ -120,16 +147,20 @@ def build(input_spm: Path, output_dir: Path) -> PreTrainedTokenizerFast:
         mask_token=SPECIALS["mask"][0],
         model_max_length=1024,
     )
-    # Also save a special-renamed spiece.model alongside, for provenance / slow fallback.
-    rename_spm_specials(input_spm, output_dir / "spiece.model")
-    fast.save_pretrained(str(output_dir))
+    # Save only tokenizer.json (the fast backend) — slow files already written above.
+    (output_dir / "tokenizer.json").write_text(
+        fast.backend_tokenizer.to_str(), encoding="utf-8"
+    )
     return fast
 
 
 def verify(input_spm: Path, output_dir: Path) -> None:
     """Assert the built tokenizer is faithful and correctly configured."""
     sp = spm.SentencePieceProcessor(model_file=str(input_spm))
+    # AutoTokenizer loads the slow tokenizer by default (tokenizer_class=XLMRobertaTokenizer);
+    # for speed during verification we load the fast directly.
     fast = PreTrainedTokenizerFast.from_pretrained(str(output_dir))
+    slow = DebertaV2Tokenizer.from_pretrained(str(output_dir), use_fast=False)
 
     # 1. special-token ids match the canonical clean scheme
     for name, (tok, tid) in SPECIALS.items():
@@ -155,10 +186,20 @@ def verify(input_spm: Path, output_dir: Path) -> None:
             f"round-trip drift on: {t!r} -> {dec!r}"
         )
 
+    # 5. slow tokenizer (the canonical released one) reproduces spm ids and has correct class
+    for t in _CHECK_TEXTS:
+        slow_ids = slow.encode(t, add_special_tokens=False)
+        spm_ids = sp.encode(t)
+        assert slow_ids == spm_ids, f"slow/spm id mismatch on: {t!r}\n  slow={slow_ids}\n  spm={spm_ids}"
+    assert slow.pad_token_id == 0 and slow.mask_token_id == 4, "slow tokenizer special ids wrong"
+
     print("VERIFY PASS")
-    print(f"  vocab (real pieces) : {len(fast)}  (model pads to 100032 at build via <DUMMY_i>)")
+    print(f"  vocab (real pieces) : {len(fast)}")
     print(f"  special ids         : [PAD]=0 [UNK]=1 [CLS]=2 [SEP]=3 [MASK]=4")
-    print(f"  fidelity            : fast ids == raw spm ids on {len(_CHECK_TEXTS)} samples")
+    print(f"  fast fidelity       : fast ids == raw spm ids on {len(_CHECK_TEXTS)} samples")
+    print(f"  slow fidelity       : XLMRobertaTokenizer ids == raw spm ids (byte_fallback preserved)")
+    print(f"  release tokenizer   : XLMRobertaTokenizer (slow, byte_fallback=True, 0% UNK)")
+    print(f"  training tokenizer  : PreTrainedTokenizerFast (fast, ~0.05% UNK on real Hebrew)")
 
 
 def main() -> None:

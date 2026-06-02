@@ -11,7 +11,7 @@
     "1": {
       "content": "[UNK]",
       "lstrip": false,
-      "normalized": false,
+      "normalized": true,
       "rstrip": false,
       "single_word": false,
       "special": true
@@ -22,7 +22,7 @@
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": false
+      "special": true
     },
     "3": {
       "content": "[SEP]",
@@ -30,7 +30,7 @@
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": false
+      "special": true
     },
     "4": {
       "content": "[MASK]",
@@ -38,17 +38,20 @@
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": false
+      "special": true
     }
   },
   "bos_token": "[CLS]",
   "clean_up_tokenization_spaces": true,
   "cls_token": "[CLS]",
+  "do_lower_case": false,
   "eos_token": "[SEP]",
   "mask_token": "[MASK]",
   "model_max_length": 1024,
   "pad_token": "[PAD]",
   "sep_token": "[SEP]",
-  "tokenizer_class": "PreTrainedTokenizerFast",
+  "sp_model_kwargs": {},
+  "split_by_punct": false,
+  "tokenizer_class": "DebertaV2Tokenizer",
   "unk_token": "[UNK]"
 }
