@@ -139,8 +139,8 @@ def verify(input_spm: Path, output_dir: Path) -> None:
         0, 1, 2, 3, 4,
     ), "special-token id attributes mismatch"
 
-    # 2. vocab size is the clean 100000 (no duplicate unk/pad)
-    assert len(fast) == sp.get_piece_size() == 100000, f"vocab size {len(fast)} != 100000"
+    # 2. vocab size matches the spm (no duplicate unk/pad)
+    assert len(fast) == sp.get_piece_size(), f"vocab size mismatch: fast {len(fast)} vs spm {sp.get_piece_size()}"
 
     # 3. fast ids reproduce the raw spm ids exactly (core text, no specials)
     for t in _CHECK_TEXTS:

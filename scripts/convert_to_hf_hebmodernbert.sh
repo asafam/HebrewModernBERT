@@ -20,4 +20,4 @@ python ./src/convert_to_hf.py \
     --pad-token-id 0 \
     --mask-token-id 4 \
     --max-length 1024 \
-    --vocab-size 100032
+    --vocab-size 150016

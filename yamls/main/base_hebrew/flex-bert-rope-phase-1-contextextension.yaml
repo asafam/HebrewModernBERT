@@ -8,7 +8,7 @@ data_local: ./data/hebrewmodernbert/hebrew # DEFERRED phase (context extension t
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 8192
-tokenizer_name: tokenizer/v3_clean # rebuilt clean HF fast tokenizer (src/data_prep/tokenizer/build_hf_tokenizer.py)
+tokenizer_name: tokenizer/v4_bpe_150k # BPE 150K beats DictaBERT: 1.302 tok/word 0% UNK
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 # count_padding_tokens: false
 
@@ -84,7 +84,7 @@ model:
     pad_logits: false
     compile_model: true
     masked_prediction: true
-    vocab_size: 100000
+    vocab_size: 150016
     type_vocab_size: 1
     bos_token_id: 2
     cls_token_id: 2
