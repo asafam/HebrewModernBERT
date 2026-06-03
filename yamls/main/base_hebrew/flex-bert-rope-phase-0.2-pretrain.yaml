@@ -177,6 +177,9 @@ loggers:
   wandb:
     project: HebModernBERT-phase0.2
     entity: asafam
+    init_kwargs:
+      resume: allow
+      id: hebrewmodernbert-base-phase-0.2  # stable across 12h requeues -> one continuous W&B curve
 
 # (Optional) Profiler
 # profiler:
