@@ -3,14 +3,14 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_corpus: mixed_h50e25c25
-data_local: data/hebrewmodernbert/mixed/${data_corpus}
+run_group: large # checkpoint namespace shared across phases (checkpoints/large/<run>/ckpt)
+data_local: ./data/hebrewmodernbert/mixed/mixed_h50e75c25 # phase 0.1: BROAD pretraining on mixed Hebrew+English+code corpus
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
-tokenizer_name: tokenizer # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
-mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
-# count_padding_tokens: false
+tokenizer_name: tokenizer/v4_bpe_150k # BPE 150K beats DictaBERT: 1.302 tok/word, 0% UNK
+mlm_probability: 0.3
+count_padding_tokens: false # count only REAL tokens toward max_duration
 
 # Run Name
 run_name: modern-bert-large-phase-0.1-pretrain
@@ -83,12 +83,12 @@ model:
     pad_logits: false
     compile_model: true
     masked_prediction: true
-    vocab_size: 100002
+    vocab_size: 150016
     type_vocab_size: 1
     bos_token_id: 2
     cls_token_id: 2
     eos_token_id: 3
-    pad_token_id: 100001
+    pad_token_id: 0
     sep_token_id: 3
 
 # Dataloaders
@@ -98,13 +98,13 @@ train_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: train
+    streaming: false # NoStreamingDataset: local MDS is uncompressed; avoids multi-GPU hang
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
     mlm_probability: ${mlm_probability}
   drop_last: true
   num_workers: 8
-  # sequence_packing: true
   batch_size_warmup_min_size: ${device_train_microbatch_size}
   batch_size_warmup_tokens: 10_000_000_000tok
 
@@ -114,6 +114,7 @@ eval_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: validation
+    streaming: false
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: false
@@ -123,9 +124,9 @@ eval_loader:
 
 # Optimization
 scheduler:
-  name: linear_decay_with_warmup
-  t_warmup: 0.06dur # Warmup for 6% of the training duration ~50B tokens
-  alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
+  name: constant_with_warmup # stable broad pretraining; freely extendable (no anneal baked in)
+  t_warmup: 0.06dur
+  t_max: ${max_duration}
 
 optimizer:
   name: decoupled_stableadamw
@@ -140,8 +141,9 @@ optimizer:
 
 # algorithms:
 
-max_duration: 850_000_000_000tok
+max_duration: 100_000_000_000tok # 100B REAL tokens (~0.65 epoch of the ~150B mixed corpus)
 eval_interval: 10000ba
+eval_subset_num_batches: 100
 
 # System
 seed: 17
@@ -173,6 +175,9 @@ loggers:
   wandb:
     project: HebModernBERT-large-phase0.1
     entity: asafam
+    init_kwargs:
+      resume: allow
+      id: hebrewmodernbert-large-phase-0.1  # stable across 12h requeues -> one continuous W&B curve
 
 # (Optional) Profiler
 # profiler:
@@ -181,9 +186,9 @@ loggers:
 
 # (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 500ba
+save_interval: 4000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 
 # (Optional) Load model from checkpopint
 # init_from_checkpoint:
@@ -198,9 +203,9 @@ save_folder: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt    # e.g. './{run
 # 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
 # load_path: null
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250522_1841/ckpt/latest-rank0.pt"
-load_path: ${checkpoint_dir}/${data_corpus}/${run_name}/ckpt/latest-rank0.pt
+# load_path:  # phase 0.1 trains from scratch — leave unset
 
-# autoresume: false
+autoresume: true # on requeue, resume from latest checkpoint; first start = from scratch
 # reset_time: true # restarts the scheduler, dataloaders, etc from step zero
 # restart_override: true # resets optimizer hyperparameters (LR, WD, etc), LR Scheduler, and training microbatch size from the checkpoint's values
 

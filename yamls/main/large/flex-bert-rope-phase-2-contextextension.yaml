@@ -1,37 +1,29 @@
-# Note that some of the fields in this template haven't been filled in yet.
-# Please resolve any `null` fields before launching!
+# Phase 2: Final anneal at 8192 context. Loads phase-1 checkpoint.
 
-# Follow the instructions in the README to set up ./data/c4
-# Or point data paths to your remote C4 dataset
+run_group: large
 data_local: ./data/hebrewmodernbert/hebrew
-data_remote: # If blank, files must be present in data_local
+data_remote:
 
 max_seq_len: 8192
-tokenizer_name: tokenizer # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
-mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
-# count_padding_tokens: false
+tokenizer_name: tokenizer/v4_bpe_150k
+mlm_probability: 0.3
+count_padding_tokens: false
 
 # Run Name
-run_name: modern-bert-base-phase-2-contextextension
+run_name: modern-bert-large-phase-2-contextextension
 
 # Model
 model:
-  name: flex_bert # flex_bert, hf_bert, mosaic_bert
-  recompute_metric_loss: false # recompute metric loss, use if passing label_smoothing to record non-label-smoothed loss as a metric
-  pretrained_model_name: bert-base-uncased #${tokenizer_name}
-  #pretrained_checkpoint: checkpoints/modern-bert-base-phase-0.1-pretrain/20250512_1506/ckpt/latest-rank0.pt # If set, will load from this checkpoint instead of training from scratch
+  name: flex_bert
+  recompute_metric_loss: false
+  pretrained_model_name: bert-base-uncased
   tokenizer_name: ${tokenizer_name}
 
-  # FlexBERT 'base' generally uses the default architecture values from the Hugging Face BertConfig object
-  # Note: if using the pretrained_checkpoint argument to create a model from an existing checkpoint, make sure
-  # the model_config settings match the architecture of the existing model
   model_config:
-    # architectures: ["ModernBertForMaskedLM"]
-    # model_type: modernbert
-    num_attention_heads: 12 # bert-base default
-    num_hidden_layers: 22 # bert-base default
-    hidden_size: 768
-    intermediate_size: 1152
+    num_attention_heads: 16
+    num_hidden_layers: 28
+    hidden_size: 1024
+    intermediate_size: 2624
     layer_norm_eps: 1e-5
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
@@ -57,11 +49,13 @@ model:
       bias: false
     padding: unpadded
     sparse_prediction: false
-    rotary_emb_dim: null # will be set to headdim by default
+    rotary_emb_dim: null
     rotary_emb_base_local: 10000.0
     rotary_emb_base: 160000.0
     rotary_emb_scale_base: null
     rotary_emb_interleaved: false
+    local_attn_rotary_emb_base: 10000.0
+    local_attn_rotary_emb_dim: null
     allow_embedding_resizing: true
     hidden_act: gelu
     head_pred_act: gelu
@@ -82,12 +76,12 @@ model:
     pad_logits: false
     compile_model: true
     masked_prediction: true
-    vocab_size: 100002
+    vocab_size: 150016
     type_vocab_size: 1
     bos_token_id: 2
     cls_token_id: 2
     eos_token_id: 3
-    pad_token_id: 100001
+    pad_token_id: 0
     sep_token_id: 3
 
 # Dataloaders
@@ -97,13 +91,13 @@ train_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: train
+    streaming: false
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
     mlm_probability: ${mlm_probability}
   drop_last: true
-  num_workers: 8
-  # sequence_packing: true
+  num_workers: 4
 
 eval_loader:
   name: text
@@ -111,49 +105,48 @@ eval_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: validation
+    streaming: false
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: false
-    mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
+    mlm_probability: 0.15
   drop_last: false
-  num_workers: 8
+  num_workers: 4
 
 # Optimization
 scheduler:
   name: one_minus_sqrt
-  t_decay: 2_000_000_000_000tok # Total training duration in tokens
-  t_max: 2_000_000_000_000tok # Total training duration in tokens
-  alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
+  alpha_f: 0.001
+  t_decay: ${max_duration}
+  t_max: ${max_duration}
 
 optimizer:
   name: decoupled_stableadamw
-  lr: 3.0e-4 # Peak learning rate
+  lr: 3.0e-4
   betas:
   - 0.9
   - 0.98
   eps: 1.0e-06
-  weight_decay: 1.0e-5 # Amount of weight decay regularization
-  filter_bias_norm_wd: true # If True, doesn't apply weight decay to norm layers and biases
+  weight_decay: 1.0e-5
+  filter_bias_norm_wd: true
   log_grad_norm: true
 
-# algorithms:
-
-max_duration: 2_000_000_000_000tok
-eval_interval: 10000ba
+max_duration: 50_000_000_000tok
+eval_interval: 500ba
+eval_subset_num_batches: 100
 
 # System
 seed: 17
-global_train_batch_size: 4608 
-device_train_microbatch_size: 128
-# device_train_microbatch_size: auto
+global_train_batch_size: 4608
+device_train_microbatch_size: 32 # tune after smoke at 8192 seq_len
 precision: amp_bf16
 
-global_eval_batch_size: 1024
-device_eval_microbatch_size: 128
+global_eval_batch_size: 256
+device_eval_microbatch_size: 16
 
 # Logging
-progress_bar: true # was false
-log_to_console: false # was true
+progress_bar: true
+log_to_console: false
 console_log_interval: 10ba
 
 algorithms:
@@ -166,35 +159,19 @@ callbacks:
     window_size: 50
   lr_monitor: {}
 
-# (Optional) W&B logging
 loggers:
   wandb:
-    project: HebModernBERT-phase2
+    project: HebModernBERT-large-phase2
     entity: asafam
+    init_kwargs:
+      resume: allow
+      id: hebrewmodernbert-large-phase-2
 
-# (Optional) Profiler
-# profiler:
-#   composer_trace_dir: profiler/${run_name}/${timestamp}/composer_profiler
-#   torch_trace_dir:  profiler/${run_name}/${timestamp}/torch_profiler
-
-# (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 4000ba
-save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: ${checkpoint_dir}/${run_name}/${timestamp}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_interval: 1000ba
+save_num_checkpoints_to_keep: -1
+save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 
-# (Optional) Load model from checkpopint
-# init_from_checkpoint:
-#   checkpoint_cfg: ${model}
-#   checkpoint_load_path: ${checkpoint_dir}
-#   checkpoint_run_name: "modern-bert-base-phase-0.1-pretrain/20250521_2334/ckpt"
+load_path: ${checkpoint_dir}/${run_group}/modern-bert-large-phase-1-contextextension/ckpt/latest-rank0.pt
 
-
-# (Optional) Load from local filesystem or remote object store to
-# start from an existing model checkpoint;
-# e.g. './ckpt/latest-rank{rank}.pt' (local), or
-# 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
-# load_path: null
-# load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250603_1331/ckpt/latest-rank0.pt"
-load_path: checkpoints/modern-bert-base-phase-1-contextextension/20250619_2241/ckpt/latest-rank0.pt
-
+autoresume: true
