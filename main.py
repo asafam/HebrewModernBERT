@@ -702,9 +702,13 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
             trainer.fit(
                 device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
                 reset_time=cfg.get("reset_time", False),
+                spin_dataloaders=cfg.get("spin_dataloaders", True),
             )
         else:
-            trainer.fit(reset_time=cfg.get("reset_time", False))
+            trainer.fit(
+                reset_time=cfg.get("reset_time", False),
+                spin_dataloaders=cfg.get("spin_dataloaders", True),
+            )
 
     if return_trainer:
         return trainer

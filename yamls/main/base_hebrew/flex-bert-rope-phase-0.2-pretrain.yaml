@@ -208,6 +208,7 @@ save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/ba
 load_path: ${checkpoint_dir}/${run_group}/modern-bert-base-phase-0.1-pretrain/ckpt/latest-rank0.pt
 load_weights_only: true # start phase 0.2 as a fresh specialization run from phase-0.1 WEIGHTS (reset optimizer/schedule/step); autoresume still resumes 0.2's own checkpoint on requeue
 
+spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset re-iterates 200M+ docs otherwise -> hang); data ordering doesn't matter for pretraining
 autoresume: true # on requeue, resume from latest checkpoint in save_folder; first start loads load_path (previous phase)
 # reset_time: true # restarts the scheduler, dataloaders, etc from step zero [**ENABLE ONLY IF YOU WANT TO START FROM SCRATCH**]
 # restart_override: true # resets optimizer hyperparameters (LR, WD, etc), LR Scheduler, and training microbatch size from the checkpoint's values

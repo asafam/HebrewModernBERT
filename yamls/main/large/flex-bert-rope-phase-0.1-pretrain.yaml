@@ -205,6 +205,7 @@ save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250522_1841/ckpt/latest-rank0.pt"
 # load_path:  # phase 0.1 trains from scratch — leave unset
 
+spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset would re-iterate 200M+ docs -> hang)
 autoresume: true # on requeue, resume from latest checkpoint; first start = from scratch
 # reset_time: true # restarts the scheduler, dataloaders, etc from step zero
 # restart_override: true # resets optimizer hyperparameters (LR, WD, etc), LR Scheduler, and training microbatch size from the checkpoint's values

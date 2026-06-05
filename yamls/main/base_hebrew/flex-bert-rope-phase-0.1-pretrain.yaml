@@ -207,4 +207,5 @@ save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/ba
 # load_path: "/home/nlp/achimoa/workspace/ModernHebrewBERT/checkpoints/modern-bert-base-phase-0.1-pretrain/20250525_1125/ckpt/latest-rank0.pt"
 # load_path:  # phase 0.1 trains from scratch — leave unset
 
+spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset re-iterates 200M+ docs otherwise -> hang); data ordering doesn't matter for pretraining
 autoresume: true # on requeue, resume from the latest checkpoint in save_folder; first start = from scratch

@@ -177,4 +177,5 @@ save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 load_path: ${checkpoint_dir}/${run_group}/modern-bert-large-phase-0.1-pretrain/ckpt/latest-rank0.pt
 load_weights_only: true # fresh schedule/step from phase-0.1 weights
 
+spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset would re-iterate 200M+ docs -> hang)
 autoresume: true # on requeue, resume from latest checkpoint in save_folder

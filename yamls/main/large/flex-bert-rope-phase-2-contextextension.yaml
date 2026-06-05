@@ -174,4 +174,5 @@ save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 
 load_path: ${checkpoint_dir}/${run_group}/modern-bert-large-phase-1-contextextension/ckpt/latest-rank0.pt
 
+spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset would re-iterate 200M+ docs -> hang)
 autoresume: true
