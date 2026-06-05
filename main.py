@@ -125,7 +125,9 @@ def log_config(cfg: DictConfig):
         except ImportError as e:
             raise e
         if wandb.run:
-            wandb.config.update(om.to_container(cfg, resolve=True))
+            # allow_val_change=True so a requeue resuming the same W&B run (resume:allow +
+            # stable id) doesn't crash on the changing `timestamp` key (ConfigError otherwise).
+            wandb.config.update(om.to_container(cfg, resolve=True), allow_val_change=True)
 
 
 def build_algorithm(name, kwargs):
