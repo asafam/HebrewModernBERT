@@ -98,8 +98,7 @@ train_loader:
     mlm_probability: ${mlm_probability}
   drop_last: true
   num_workers: 8
-  batch_size_warmup_min_size: ${device_train_microbatch_size}
-  batch_size_warmup_tokens: 50_000_000_000tok
+  # batch_size_warmup removed: loading from stable pretrained weights; WSD LR warmup handles adaptation
 
 eval_loader:
   name: text

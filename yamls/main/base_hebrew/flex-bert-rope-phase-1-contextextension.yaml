@@ -10,7 +10,7 @@ data_remote: # If blank, files must be present in data_local
 max_seq_len: 8192
 tokenizer_name: tokenizer/v4_bpe_150k # BPE 150K beats DictaBERT: 1.302 tok/word 0% UNK
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
-# count_padding_tokens: false
+count_padding_tokens: false
 
 # Run Name
 run_name: modern-bert-base-phase-1-contextextension
@@ -123,7 +123,7 @@ eval_loader:
 # Optimization
 scheduler:
   name: constant_with_warmup
-  t_warmup: 2_000_000_000tok # re-warmup entering context-extension: LR drops 8e-4 -> 3e-4 and seq_len 1024 -> 8192; ramp to avoid a loss spike
+  t_warmup: 0tok # paper uses no LR warmup at context-extension start (ModernBERT arXiv:2412.13663)
   t_max: ${max_duration}
 
 optimizer:
@@ -139,19 +139,19 @@ optimizer:
 
 # algorithms:
 
-max_duration: 1_100_000_000_000tok
-eval_interval: 10000ba
-eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); ~100k samples/eval keeps the loss curve fast
+max_duration: 30_000_000_000tok # 30B tokens at 8192 context; ~576*8192=4.7M tok/batch -> ~6400 steps (~3 days on 2xH200)
+eval_interval: 500ba
+eval_subset_num_batches: 100
 
 # System
 seed: 17
-global_train_batch_size: 4608 
-device_train_microbatch_size: 128
+global_train_batch_size: 576 # 8x reduction from 4608 (paper: keep tokens/batch constant at 8x longer seqs)
+device_train_microbatch_size: 4 # placeholder — tune after smoke at 8192 seq_len (128 will OOM)
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
-global_eval_batch_size: 1024
-device_eval_microbatch_size: 128
+global_eval_batch_size: 64
+device_eval_microbatch_size: 4
 
 # Logging
 progress_bar: true # was false
@@ -181,7 +181,7 @@ loggers:
 
 # (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 4000ba
+save_interval: 500ba # ~6400 total steps; save frequently
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
 save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/base/<run_name>/ckpt
 

@@ -10,7 +10,7 @@ data_remote: # If blank, files must be present in data_local
 max_seq_len: 8192
 tokenizer_name: tokenizer/v4_bpe_150k # BPE 150K beats DictaBERT: 1.302 tok/word 0% UNK
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
-# count_padding_tokens: false
+count_padding_tokens: false
 
 # Run Name
 run_name: modern-bert-base-phase-2-contextextension
@@ -145,13 +145,13 @@ eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); 
 
 # System
 seed: 17
-global_train_batch_size: 4608 
-device_train_microbatch_size: 128
+global_train_batch_size: 576 # 8x reduction (keep tokens/batch constant vs 1024-context phases)
+device_train_microbatch_size: 4 # tune after smoke at 8192 seq_len
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
-global_eval_batch_size: 1024
-device_eval_microbatch_size: 128
+global_eval_batch_size: 64
+device_eval_microbatch_size: 4
 
 # Logging
 progress_bar: true # was false
