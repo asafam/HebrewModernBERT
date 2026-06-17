@@ -14,17 +14,24 @@
 #
 # Run via: sbatch .slurm/jobs/build_b200_env.slurm   (runs on a B200 so the final
 # import+forward sanity check executes on the real device).
-set -u
+# NOTE: do NOT use `set -u` — conda's binutils activation hook references an
+# unbound $ADDR2LINE and would abort the script at `conda activate`.
+set -e
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
 ENV=bert-b200
 
 echo "=================================================================="
-echo "[1/6] Clone bert24 -> $ENV (reuses all existing deps)"
+echo "[1/6] Clone bert24 -> $ENV (skip if already cloned)"
 echo "=================================================================="
-conda env remove -n $ENV -y 2>/dev/null || true
-conda create --clone bert24 -n $ENV -y
+if conda env list | grep -qE "/${ENV}$"; then
+    echo "  $ENV already exists — reusing it (skipping clone)"
+else
+    conda create --clone bert24 -n $ENV -y
+fi
+set +e   # conda activate hooks are not -e/-u safe
 conda activate $ENV
+set -e
 
 echo "=================================================================="
 echo "[2/6] nvcc 12.8 toolchain (needed to compile flash-attn for sm_100)"
