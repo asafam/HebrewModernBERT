@@ -26,6 +26,8 @@ python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-1-context
     run_name=smoke-phase-1-b200 \
     device_train_microbatch_size=auto \
     max_duration=60ba \
+    scheduler.t_warmup=0ba \
+    eval_subset_num_batches=2 \
     eval_interval=1000ba \
     save_interval=1000ba \
     save_num_checkpoints_to_keep=1 \
