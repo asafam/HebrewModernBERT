@@ -3,6 +3,7 @@
 #SBATCH --output=.slurm/logs/hmb-smk-b200_%j.out
 #SBATCH --error=.slurm/logs/hmb-smk-b200_%j.err
 #SBATCH --partition=p_b200_goldberg
+#SBATCH --account=ug_goldberg  # p_b200_goldberg requires the ug_goldberg account
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1           # Goldberg 1-GPU allocation: keeps the 4-GPU p_b200_nlp budget
                                # free for the real run. device_train_microbatch_size is PER-GPU,
