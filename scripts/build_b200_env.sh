@@ -49,7 +49,10 @@ echo "=================================================================="
 pip install "mosaicml[nlp,wandb]==0.31.0"
 pip install -U "transformers>=4.48,<5"
 pip install "mosaicml-streaming" "omegaconf>=2.3" einops typer safetensors \
-    datasets "ninja" torch-optimi "ruamel.yaml" zstandard tqdm
+    datasets "ninja" torch-optimi "ruamel.yaml" zstandard tqdm \
+    numba sentencepiece protobuf            # numba: sequence_packer; sentencepiece+protobuf: tokenizer
+# NOTE: retrieval/eval deps (colbert, ir_datasets, ranx, evaluate) are intentionally
+# NOT installed here — they are eval-only and colbert would downgrade torch off cu128.
 
 echo "=================================================================="
 echo "[4/5] Build flash-attn 2.7.4.post1 (FA2) for Blackwell sm_100"
