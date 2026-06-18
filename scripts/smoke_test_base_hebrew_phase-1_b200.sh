@@ -27,10 +27,12 @@ export WANDB_MODE=offline
 export TRITON_CACHE_DIR="${SLURM_TMPDIR:-/tmp}/triton-cache-${SLURM_JOB_ID:-$$}"
 rm -rf "$TRITON_CACHE_DIR"; mkdir -p "$TRITON_CACHE_DIR"
 
+# MB=auto + COMPILE=false by default (microbatch probe). Override via sbatch --export
+# to run the compile=true de-risk: --export=ALL,COMPILE=true,MB=144
 python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-1-contextextension.yaml \
     run_name=smoke-phase-1-b200 \
-    device_train_microbatch_size=auto \
-    max_duration=60ba \
+    device_train_microbatch_size=${MB:-auto} \
+    max_duration=${MAXBA:-60}ba \
     scheduler.t_warmup=0ba \
     eval_subset_num_batches=2 \
     eval_interval=1000ba \
@@ -38,7 +40,7 @@ python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-1-context
     save_num_checkpoints_to_keep=1 \
     autoresume=false \
     save_overwrite=true \
-    model.model_config.compile_model=false \
+    model.model_config.compile_model=${COMPILE:-false} \
     log_to_console=true \
     console_log_interval=10ba
 echo "Done. Read the auto-chosen device_train_microbatch_size from the log above,"
