@@ -21,6 +21,11 @@ conda activate bert-b200   # Blackwell env: torch 2.7/cu128 + flash-attn 2.7.4.p
 cd /home/nlp/achimoa/workspace/HebrewModernBERT
 
 export WANDB_MODE=offline
+# Fresh per-job triton cache: the shared ~/.triton cross-contaminates across triton
+# versions and poisons flash-attn's rotary kernel with stale cubins -> PY_SSIZE_T_CLEAN
+# at _init_handles. A clean per-job cache compiles fresh and avoids it.
+export TRITON_CACHE_DIR="${SLURM_TMPDIR:-/tmp}/triton-cache-${SLURM_JOB_ID:-$$}"
+rm -rf "$TRITON_CACHE_DIR"; mkdir -p "$TRITON_CACHE_DIR"
 
 python -m composer main.py yamls/main/base_hebrew/flex-bert-rope-phase-1-contextextension.yaml \
     run_name=smoke-phase-1-b200 \
