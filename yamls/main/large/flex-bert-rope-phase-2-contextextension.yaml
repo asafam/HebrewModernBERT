@@ -173,6 +173,7 @@ save_num_checkpoints_to_keep: -1
 save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 
 load_path: ${checkpoint_dir}/${run_group}/modern-bert-large-phase-1-contextextension/ckpt/latest-rank0.pt
+load_weights_only: true # context-ext: load previous-phase WEIGHTS only -> fresh optimizer/schedule/clock (else inherits ~100B-tok elapsed -> "max_duration <= elapsed" error). Matches phase-0.2.
 
 spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset would re-iterate 200M+ docs -> hang)
 autoresume: true
