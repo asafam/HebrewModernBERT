@@ -15,9 +15,9 @@
 #
 # Run via slurm: sbatch .slurm/jobs/smoke_b200_phase-1.slurm
 
-echo "Activating Conda environment: bert24"
+echo "Activating Conda environment: bert-b200"
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate bert24
+conda activate bert-b200   # Blackwell env: torch 2.7/cu128 + flash-attn 2.7.4.post1 (sm_100)
 cd /home/nlp/achimoa/workspace/HebrewModernBERT
 
 export WANDB_MODE=offline
