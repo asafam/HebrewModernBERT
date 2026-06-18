@@ -40,10 +40,8 @@ echo "=================================================================="
 echo "[2/5] torch 2.7.0 + cu128 (Blackwell kernels + triton 3.3)"
 echo "=================================================================="
 pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
-# triton 3.3.0 (torch 2.7's pin) has a PY_SSIZE_T_CLEAN bug in _init_handles that
-# crashes flash-attn's triton rotary kernel on Blackwell; 3.3.1 patches it. The pin
-# is exact (==3.3.0) so pip warns, but 3.3.1 is an ABI-compatible bugfix.
-pip install "triton==3.3.1"
+# triton is pinned LAST (step 5) — peft/accelerate re-resolve torch's exact 3.3.0 pin
+# and would otherwise clobber it.
 
 echo "=================================================================="
 echo "[3/5] Training stack: composer 0.31 + transformers>=4.48 + repo deps"
@@ -54,7 +52,8 @@ pip install "mosaicml[nlp,wandb]==0.31.0"
 pip install -U "transformers>=4.48,<5"
 pip install "mosaicml-streaming" "omegaconf>=2.3" einops typer safetensors \
     datasets "ninja" torch-optimi "ruamel.yaml" zstandard tqdm \
-    numba sentencepiece protobuf            # numba: sequence_packer; sentencepiece+protobuf: tokenizer
+    numba sentencepiece protobuf \          # numba: sequence_packer; sentencepiece+protobuf: tokenizer
+    peft accelerate                         # peft: convert_to_hf (composer 0.31 checks PEFT config on export)
 # NOTE: retrieval/eval deps (colbert, ir_datasets, ranx, evaluate) are intentionally
 # NOT installed here — they are eval-only and colbert would downgrade torch off cu128.
 
@@ -68,6 +67,12 @@ export MAX_JOBS=${MAX_JOBS:-32}            # cap parallel nvcc jobs (RAM)
 export FLASH_ATTENTION_FORCE_BUILD=TRUE    # force source build for sm_100
 echo "  CUDA_HOME=$CUDA_HOME | nvcc=$(which nvcc)"
 pip install flash-attn==2.7.4.post1 --no-build-isolation
+
+# Pin triton 3.3.1 LAST (smoke-validated on B200 with a fresh cache; peft/accelerate
+# pulled torch's 3.3.0 pin). The real PY_SSIZE_T_CLEAN fix was a fresh per-job
+# TRITON_CACHE_DIR (set in the run scripts), not the patch version — but 3.3.1 is what
+# the compile=true smoke validated, so we keep it.
+pip install "triton==3.3.1"
 
 echo "=================================================================="
 echo "[5/5] Sanity: versions + Blackwell arch + flash-attn import"
