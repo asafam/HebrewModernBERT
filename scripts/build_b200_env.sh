@@ -40,6 +40,10 @@ echo "=================================================================="
 echo "[2/5] torch 2.7.0 + cu128 (Blackwell kernels + triton 3.3)"
 echo "=================================================================="
 pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
+# triton 3.3.0 (torch 2.7's pin) has a PY_SSIZE_T_CLEAN bug in _init_handles that
+# crashes flash-attn's triton rotary kernel on Blackwell; 3.3.1 patches it. The pin
+# is exact (==3.3.0) so pip warns, but 3.3.1 is an ABI-compatible bugfix.
+pip install "triton==3.3.1"
 
 echo "=================================================================="
 echo "[3/5] Training stack: composer 0.31 + transformers>=4.48 + repo deps"
