@@ -21,11 +21,18 @@ ENV=bert-b200
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
 echo "=================================================================="
-echo "[1/5] Fresh env $ENV (python 3.11) + clean CUDA 12.8 toolkit"
+echo "[1/5] Fresh env $ENV (python 3.11) + CUDA 12.8 via micromamba"
+echo "      (conda's classic solver is too slow on the nvidia channel -> zombies)"
 echo "=================================================================="
-conda env remove -n $ENV -y 2>/dev/null || true
-conda create -n $ENV -y python=3.11
-conda install -n $ENV -y -c nvidia cuda-toolkit=12.8
+BASE=$(conda info --base)
+MM="$PWD/.micromamba"
+if [ ! -x "$MM" ]; then
+    echo "  fetching standalone micromamba (fast solver)..."
+    curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj -O bin/micromamba > "$MM"
+    chmod +x "$MM"
+fi
+rm -rf "$BASE/envs/$ENV"
+"$MM" create -y -p "$BASE/envs/$ENV" -c conda-forge -c nvidia python=3.11 "cuda-toolkit=12.8"
 set +e; conda activate $ENV; set -e   # activate hooks aren't -e/-u safe
 echo "  nvcc: $(nvcc --version 2>/dev/null | grep release || echo 'NOT FOUND')"
 
