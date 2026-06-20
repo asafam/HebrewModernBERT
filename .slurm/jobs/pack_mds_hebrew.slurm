@@ -26,6 +26,6 @@ python -m src.data_prep.pack_mds \
     --out data/hebrewmodernbert/hebrew_packed_8192 \
     --tokenizer tokenizer/v4_bpe_150k \
     --max-length 8192 \
-    --train-max-tokens 40e9 \
+    --train-max-tokens 30e9 \
     --val-max-tokens 1e9
 echo "Done."
