@@ -4,7 +4,7 @@
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
 run_group: base # checkpoint namespace shared across phases
-data_local: ./data/hebrewmodernbert/hebrew # DEFERRED phase (context extension to 8192) — budget/schedule need review before use
+data_local: ./data/hebrewmodernbert/hebrew_packed_8192 # PACKED dense 8192-token sequences (context extension needs long seqs; raw corpus is short-doc)
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 8192
