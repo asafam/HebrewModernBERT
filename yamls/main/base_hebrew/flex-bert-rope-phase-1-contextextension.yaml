@@ -146,7 +146,7 @@ eval_subset_num_batches: 100
 # System
 seed: 17
 global_train_batch_size: 576 # 8x reduction from 4608 (paper: keep tokens/batch constant at 8x longer seqs)
-device_train_microbatch_size: 72 # capped: flash-attn triton rotary int32-overflows above ~1.2B elems; 144*8192=1.81B crashes, 72*8192=0.91B safe (bisect-validated). 2 grad-accum steps/GPU.
+device_train_microbatch_size: 24 # dense 8192 packed: activations+150K-vocab logits OOM above this on B200 (1-GPU validated); 144/24=6 grad-accum steps. Rotary-safe (<96).
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
