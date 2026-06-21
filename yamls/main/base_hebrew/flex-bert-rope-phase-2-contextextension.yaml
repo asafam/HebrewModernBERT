@@ -47,6 +47,7 @@ model:
     loss_function: fa_cross_entropy
     loss_kwargs:
       reduction: mean
+      inplace_backward: true # reuse logits buffer for grad (no 16GB torch.empty_like at 150K vocab) -> fixes 4-GPU backward OOM
     max_position_embeddings: ${max_seq_len}
     mlp_dropout_prob: 0.0
     mlp_in_bias: false
