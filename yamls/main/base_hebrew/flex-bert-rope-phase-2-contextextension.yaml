@@ -176,6 +176,9 @@ loggers:
   wandb:
     project: HebModernBERT-phase2
     entity: asafam
+    init_kwargs:
+      resume: allow
+      id: hebrewmodernbert-base-phase-2  # stable id -> one continuous W&B run across requeues
 
 # (Optional) Profiler
 # profiler:
