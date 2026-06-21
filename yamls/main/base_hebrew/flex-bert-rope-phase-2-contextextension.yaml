@@ -99,6 +99,7 @@ train_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: train
+    streaming: false # NoStreamingDataset (proven multi-GPU in 0.1/0.2); avoids StreamingDataset shm-prefix+barrier init that NCCL-cascades on 4 GPUs
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
@@ -113,6 +114,7 @@ eval_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: validation
+    streaming: false
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: false
