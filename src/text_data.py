@@ -499,18 +499,18 @@ class NoStreamingDataset(Dataset):
         shard = self.shards[shard_id]
         sample = shard[shard_sample_id]
         if "input_ids" in sample:
-            for k in list(sample.keys()):
-                if isinstance(sample[k], np.ndarray):
-                    sample[k] = sample[k][: self.max_seq_len]
-                else:
-                    del sample[k]
-            if "attention_mask" not in sample:
-                sample["attention_mask"] = np.ones_like(sample["input_ids"])
-            return sample
+            ids = sample["input_ids"]
+            # Pre-tokenized data may be stored as raw bytes (MDS 'bytes' encoding, as our
+            # packed dataset writes) or as an ndarray; normalize to int64 ndarray and
+            # truncate to max_seq_len. (Dense packed sequences are already max_seq_len.)
+            if isinstance(ids, (bytes, bytearray)):
+                ids = np.frombuffer(ids, dtype=np.int64).copy()
+            ids = np.asarray(ids)[: self.max_seq_len]
+            return {"input_ids": ids, "attention_mask": np.ones_like(ids)}
         elif "text" in sample:
             return self._tokenize(sample)
         else:
-            RuntimeError("Data sample must contain a field with `input_ids` or `text`")
+            raise RuntimeError("Data sample must contain a field with `input_ids` or `text`")
 
     def __len__(self):
         return self.len
