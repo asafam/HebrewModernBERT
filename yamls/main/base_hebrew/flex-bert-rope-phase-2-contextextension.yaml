@@ -146,7 +146,7 @@ eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); 
 # System
 seed: 17
 global_train_batch_size: 576 # 8x reduction (keep tokens/batch constant vs 1024-context phases)
-device_train_microbatch_size: 144 # B200 smoke-validated at 8192 (compile=true, fits per-GPU on 4 GPUs = 576/4)
+device_train_microbatch_size: 72 # capped: flash-attn triton rotary int32-overflows above ~1.2B elems; 144*8192=1.81B crashes, 72*8192=0.91B safe (bisect-validated). 2 grad-accum steps/GPU.
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
