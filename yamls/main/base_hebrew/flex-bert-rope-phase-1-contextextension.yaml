@@ -149,7 +149,7 @@ eval_subset_num_batches: 100
 # System
 seed: 17
 global_train_batch_size: 576 # 8x reduction from 4608 (paper: keep tokens/batch constant at 8x longer seqs)
-device_train_microbatch_size: 24 # dense 8192 packed: activations+150K-vocab logits OOM above this on B200 (1-GPU validated); 144/24=6 grad-accum steps. Rotary-safe (<96).
+device_train_microbatch_size: 16 # dense 8192: mb=24 OOM-edge over sustained 4-GPU run (masking variance + fragmentation); 16 gives headroom (144/16=9 accum)
 # device_train_microbatch_size: auto
 precision: amp_bf16
 

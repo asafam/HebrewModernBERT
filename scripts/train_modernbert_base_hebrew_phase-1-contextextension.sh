@@ -11,6 +11,7 @@ cd /home/nlp/achimoa/workspace/HebrewModernBERT
 # CRITICAL on Blackwell: a per-job triton cache. The shared ~/.triton cross-contaminates
 # across triton versions and poisons flash-attn's rotary kernel -> PY_SSIZE_T_CLEAN at
 # _init_handles. A fresh cache per job compiles clean.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True   # eliminate allocator fragmentation (16GB logits alloc failed mid-run otherwise)
 export TRITON_CACHE_DIR="${SLURM_TMPDIR:-/tmp}/triton-cache-${SLURM_JOB_ID:-$$}"
 rm -rf "$TRITON_CACHE_DIR"; mkdir -p "$TRITON_CACHE_DIR"
 

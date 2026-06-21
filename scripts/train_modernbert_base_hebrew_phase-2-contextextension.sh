@@ -8,6 +8,7 @@ conda activate bert-b200
 cd /home/nlp/achimoa/workspace/HebrewModernBERT
 
 # Fresh per-job triton cache (avoids flash-attn rotary PY_SSIZE_T_CLEAN on Blackwell)
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True   # eliminate allocator fragmentation (16GB logits alloc failed mid-run otherwise)
 export TRITON_CACHE_DIR="${SLURM_TMPDIR:-/tmp}/triton-cache-${SLURM_JOB_ID:-$$}"
 rm -rf "$TRITON_CACHE_DIR"; mkdir -p "$TRITON_CACHE_DIR"
 
