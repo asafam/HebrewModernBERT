@@ -143,8 +143,8 @@ optimizer:
 # algorithms:
 
 max_duration: 50_000_000_000tok
-eval_interval: 500ba
-eval_subset_num_batches: 100 # cap in-training eval (validation split is ~34G); ~100k samples/eval keeps the loss curve fast
+eval_interval: 1000ba # fewer evals on slow 1-GPU (less overhead); still ~every 5h
+eval_subset_num_batches: 50 # halve eval time on 1-GPU
 
 # System
 seed: 17
@@ -187,8 +187,8 @@ loggers:
 
 # (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 200ba # frequent ckpts (~0.9B): cheap GPU-count switches + requeue resilience
-save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
+save_interval: 100ba # ~16min on 1-GPU: minimize work lost at each 4h requeue
+save_num_checkpoints_to_keep: 10  # keep recent 10 (avoid disk bloat at 100ba)
 save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/base/<run_name>/ckpt
 
 # (Optional) Load model from checkpopint
