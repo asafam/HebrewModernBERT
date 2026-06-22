@@ -174,4 +174,5 @@ checkpoints
 profiler
 logs
 models
-outputs
+outputs.micromamba
+tokenizer-save-dir-*/
