@@ -187,7 +187,7 @@ loggers:
 
 # (Optional) Checkpoint to local filesystem or remote object store
 checkpoint_dir: "checkpoints"
-save_interval: 1000ba
+save_interval: 200ba # frequent ckpts (~0.9B): cheap GPU-count switches + requeue resilience
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
 save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt    # checkpoints/base/<run_name>/ckpt
 
