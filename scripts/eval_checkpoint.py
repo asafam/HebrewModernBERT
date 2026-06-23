@@ -8,8 +8,12 @@ Usage:
       eval_subset_num_batches=100 seed=17 ...overrides
 Reuses main()'s build path with do_train=False, then runs trainer.eval().
 """
+import os
 import sys
 from typing import cast
+
+# allow `from main import main` when launched as scripts/eval_checkpoint.py
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omegaconf import OmegaConf as om, DictConfig
 
