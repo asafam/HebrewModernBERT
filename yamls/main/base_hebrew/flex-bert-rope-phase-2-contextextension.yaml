@@ -176,10 +176,6 @@ loggers:
   wandb:
     project: HebModernBERT-phase2
     entity: asafam
-    init_kwargs:
-      resume: allow
-      allow_val_change: true # let num_gpus_per_node change across GPU-count scale-ups/requeues (else wandb ConfigError)
-      id: hebrewmodernbert-base-phase-2  # stable id -> one continuous W&B run across requeues
 
 # (Optional) Profiler
 # profiler:
