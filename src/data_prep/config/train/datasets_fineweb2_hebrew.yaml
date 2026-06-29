@@ -1,8 +1,9 @@
 # Additional unique Hebrew web data to grow the pretraining corpus beyond MAFAT (~30B).
 # FineWeb-2 Hebrew (heb_Hebr): 14.49M docs, ~9.8B tokens (~679 tok/doc), deduplicated
-# within FineWeb-2 (minhash_cluster_size), spans CommonCrawl dumps 2013-2024 — so the
-# net-new vs MAFAT's HeC4(~2019)+OSCAR is the dumps MAFAT never saw. PUBLIC data (safe to
-# publish); must still be deduplicated against MAFAT before training (see dedup step).
+# within FineWeb-2 (minhash_cluster_size), spans CommonCrawl dumps 2013-2024. The existing
+# MAFAT corpus is mostly NON-CC (YifatData private + HebNLI) with only a HeC4 minority, so
+# FineWeb-2 (CC) overlap is expected low and net-new high. PUBLIC data (safe to publish);
+# still deduplicated vs MAFAT before training (scripts/dedup_fineweb_vs_mafat.py).
 #
 # NOTE: streaming: true avoids a 90GB in-memory load+shuffle (DatasetFormatHF.shuffle).
 - name: fineweb2_hebrew
