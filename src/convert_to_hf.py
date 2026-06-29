@@ -21,6 +21,20 @@ class TorchDtype(str, Enum):
     bfloat16 = "bfloat16"
 
 
+def _resolve_local_rope_theta(source_config: dict) -> float:
+    """Mirror FlexBERT's local-attention rope-base selection (attention.py / configuration_bert.py).
+
+    FlexBERT uses `local_attn_rotary_emb_base` when it is set and != -1; otherwise it falls back to
+    `rotary_emb_base_local` for all local (sliding-window) layers. The YAMLs set `rotary_emb_base_local`
+    and leave `local_attn_rotary_emb_base` at its -1 default, so the correct HF `local_rope_theta` is
+    `rotary_emb_base_local` (e.g. 10000), NOT the global `rotary_emb_base` (160000).
+    """
+    override = source_config.get("local_attn_rotary_emb_base", -1)
+    if override is not None and override != -1:
+        return override
+    return source_config.get("rotary_emb_base_local", source_config["rotary_emb_base"])
+
+
 def update_config(
     source_config: dict,
     bos_token_id: int,
@@ -28,6 +42,7 @@ def update_config(
     cls_token_id: int,
     pad_token_id: int,
     sep_token_id: int,
+    mask_token_id: int,
     max_length: int,
     vocab_size: int,
     torch_dtype: TorchDtype,
@@ -57,7 +72,8 @@ def update_config(
         "intermediate_size": source_config["intermediate_size"],
         "layer_norm_eps": source_config["norm_kwargs"]["eps"],
         "local_attention": source_config["sliding_window"],
-        "local_rope_theta": source_config.get("local_attn_rotary_emb_base", source_config["rotary_emb_base"]),
+        "local_rope_theta": _resolve_local_rope_theta(source_config),
+        "mask_token_id": mask_token_id,
         "max_position_embeddings": max_length,  # Override with first config value
         "mlp_bias": source_config["mlp_in_bias"],
         "mlp_dropout": source_config["mlp_dropout_prob"],
@@ -160,7 +176,7 @@ def main(
         model_config = OmegaConf.to_container(config.model.model_config, resolve=True)
         config_dict = cast(DictConfig, model_config)
         config_dict = update_config(
-            config_dict, bos_token_id, eos_token_id, cls_token_id, pad_token_id, sep_token_id, max_length, vocab_size, torch_dtype
+            config_dict, bos_token_id, eos_token_id, cls_token_id, pad_token_id, sep_token_id, mask_token_id, max_length, vocab_size, torch_dtype
         )
 
     config_json_path = f"{target_path}/config.json"
