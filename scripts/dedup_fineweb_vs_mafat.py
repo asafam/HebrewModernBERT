@@ -23,38 +23,60 @@ import numpy as np
 from streaming import LocalDataset
 
 _WS = re.compile(r"\s+")
-CHUNK = 200_000
 
 
 def norm_u64(text: str) -> int:
-    t = unicodedata.normalize("NFC", text or "")
+    # Cap before normalize/regex: a few pathologically huge docs (hundreds of MB) make
+    # unicodedata.normalize + the \s+ sub hang for minutes (this wedged two prior runs).
+    # The first 100K chars (~22K tokens) fingerprint any real doc uniquely for dedup.
+    t = (text or "")[:100_000]
+    t = unicodedata.normalize("NFC", t)
     t = _WS.sub(" ", t).strip()
     return int.from_bytes(hashlib.blake2b(t.encode("utf-8"), digest_size=8).digest(), "little")
 
 
+_DS = {}  # per-worker LocalDataset cache: open once per dir per worker (NOT per chunk)
+
+
+def _get_ds(local):
+    ds = _DS.get(local)
+    if ds is None:
+        ds = LocalDataset(local=local)
+        _DS[local] = ds
+    return ds
+
+
+def _chunks(local, chunk_size):
+    """Many small contiguous chunks -> imap_unordered load-balances across workers (no
+    stragglers); cached LocalDataset means no per-chunk re-open. Sequential read within a chunk."""
+    ds = LocalDataset(local=local); n = len(ds); del ds
+    return [(local, lo, min(lo + chunk_size, n)) for lo in range(0, n, chunk_size)], n
+
+
 def _hash_range(args):
     local, lo, hi = args
-    ds = LocalDataset(local=local)
-    n = min(hi, len(ds))
-    a = np.empty(n - lo, dtype=np.uint64)
-    for k, i in enumerate(range(lo, n)):
+    ds = _get_ds(local)
+    a = np.empty(hi - lo, dtype=np.uint64)
+    for k, i in enumerate(range(lo, hi)):
         a[k] = norm_u64(ds[i]["text"])
     return a
 
 
-def build_sorted(dirs, workers):
+def build_sorted(dirs, workers, chunk_size):
     parts = []
     total = 0
     for local in dirs:
-        ds = LocalDataset(local=local); n = len(ds); del ds
-        total += n
-        ranges = [(local, lo, min(lo + CHUNK, n)) for lo in range(0, n, CHUNK)]
-        with Pool(workers) as p:
-            for arr in p.imap_unordered(_hash_range, ranges):
-                parts.append(arr)
-        print(f"   {local}: {n:,} docs", flush=True)
+        chunks, n = _chunks(local, chunk_size); total += n
+        done = 0
+        with Pool(workers, maxtasksperchild=8) as p:
+            for arr in p.imap_unordered(_hash_range, chunks):
+                parts.append(arr); done += 1
+                if done % 25 == 0 or done == len(chunks):
+                    print(f"   {local}: {done}/{len(chunks)} chunks ({done*chunk_size:,}/{n:,} docs)", flush=True)
+        print(f"   {local}: {n:,} docs hashed", flush=True)
     allh = np.concatenate(parts) if parts else np.empty(0, np.uint64)
-    uniq = np.unique(allh)  # sorted + deduped
+    print(f"   merging {len(allh):,} hashes (np.unique)...", flush=True)
+    uniq = np.unique(allh)
     return uniq, total
 
 
@@ -63,7 +85,7 @@ _MAFAT = None  # set in parent before Pool() -> inherited COW by fork'd workers
 
 def _fw_range(args):
     local, lo, hi = args
-    ds = LocalDataset(local=local)
+    ds = _get_ds(local)
     n = min(hi, len(ds))
     nd = nc = dd = dc = 0
     for i in range(lo, n):
@@ -80,22 +102,22 @@ def main():
     ap.add_argument("--mafat", nargs="+", required=True)
     ap.add_argument("--fineweb", nargs="+", required=True)
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 8) - 1))
+    ap.add_argument("--chunk_size", type=int, default=250_000, help="docs per chunk (load-balancing granularity)")
     ap.add_argument("--chars_per_token", type=float, default=4.40)
     args = ap.parse_args()
 
-    print(f"[1/2] hashing MAFAT {args.mafat} ({args.workers} workers)...", flush=True)
+    print(f"[1/2] hashing MAFAT {args.mafat} ({args.workers} workers, chunk {args.chunk_size:,})...", flush=True)
     global _MAFAT
-    _MAFAT, mafat_n = build_sorted(args.mafat, args.workers)
+    _MAFAT, mafat_n = build_sorted(args.mafat, args.workers, args.chunk_size)
     print(f"   MAFAT: {mafat_n:,} docs -> {len(_MAFAT):,} unique normalized hashes "
           f"(~{_MAFAT.nbytes/1e9:.1f}GB)", flush=True)
 
     print(f"[2/2] checking FineWeb {args.fineweb} vs MAFAT...", flush=True)
     nd = nc = dd = dc = 0
     for local in args.fineweb:
-        ds = LocalDataset(local=local); n = len(ds); del ds
-        ranges = [(local, lo, min(lo + CHUNK, n)) for lo in range(0, n, CHUNK)]
-        with Pool(args.workers) as p:  # fork AFTER _MAFAT is set -> COW shared
-            for a, b, c, e in p.imap_unordered(_fw_range, ranges):
+        chunks, n = _chunks(local, args.chunk_size)
+        with Pool(args.workers, maxtasksperchild=8) as p:  # fork AFTER _MAFAT set -> COW; recycle to free shard cache
+            for a, b, c, e in p.imap_unordered(_fw_range, chunks):
                 nd += a; nc += b; dd += c; dc += e
 
     net_docs, net_chars = nd - dd, nc - dc
