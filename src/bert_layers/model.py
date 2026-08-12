@@ -329,7 +329,9 @@ class BertForMaskedLM(BertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        # weights_only=False: torch >= 2.6 flipped this default and its restricted unpickler rejects
+        # Composer checkpoints (non-tensor state such as datetime.timedelta). See main.py.
+        state_dict = torch.load(pretrained_checkpoint, weights_only=False)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -493,7 +495,9 @@ class BertForSequenceClassification(BertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        # weights_only=False: torch >= 2.6 flipped this default and its restricted unpickler rejects
+        # Composer checkpoints (non-tensor state such as datetime.timedelta). See main.py.
+        state_dict = torch.load(pretrained_checkpoint, weights_only=False)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -622,7 +626,9 @@ class BertForMultipleChoice(BertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        # weights_only=False: torch >= 2.6 flipped this default and its restricted unpickler rejects
+        # Composer checkpoints (non-tensor state such as datetime.timedelta). See main.py.
+        state_dict = torch.load(pretrained_checkpoint, weights_only=False)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -1051,7 +1057,9 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("FlexBERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        # weights_only=False: torch >= 2.6 flipped this default and its restricted unpickler rejects
+        # Composer checkpoints (non-tensor state such as datetime.timedelta). See main.py.
+        state_dict = torch.load(pretrained_checkpoint, weights_only=False)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -1291,7 +1299,9 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        # weights_only=False: torch >= 2.6 flipped this default and its restricted unpickler rejects
+        # Composer checkpoints (non-tensor state such as datetime.timedelta). See main.py.
+        state_dict = torch.load(pretrained_checkpoint, weights_only=False)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -1426,7 +1436,9 @@ class FlexBertForMultipleChoice(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        # weights_only=False: torch >= 2.6 flipped this default and its restricted unpickler rejects
+        # Composer checkpoints (non-tensor state such as datetime.timedelta). See main.py.
+        state_dict = torch.load(pretrained_checkpoint, weights_only=False)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -1528,7 +1540,11 @@ def init_model_from_pretrained(
         (FlexBertAbsoluteEmbeddings, FlexBertSansPositionEmbeddings, FlexBertCompiledSansPositionEmbeddings),
     ), f"Unsupported embedding layer type: {type(new_model.embeddings)}"
 
-    # tile_embedding(pretrained_model.embeddings.tok_embeddings, new_model.embeddings.tok_embeddings, mode=mode)
+    # NOTE: this MUST stay uncommented. With tie_word_embeddings=True (the HF default, unset in our
+    # YAMLs) the decoder weight is re-tied to tok_embeddings below, so leaving this commented out
+    # leaves the whole vocab x hidden embedding matrix at random init (31% of HebrewModernBERT-large)
+    # and silently defeats a third of the base->large warm start.
+    tile_embedding(pretrained_model.embeddings.tok_embeddings, new_model.embeddings.tok_embeddings, mode=mode)
     if isinstance(pretrained_model.embeddings, FlexBertAbsoluteEmbeddings):
         tile_embedding(pretrained_model.embeddings.pos_embeddings, new_model.embeddings.pos_embeddings, mode=mode)
 

@@ -14,6 +14,7 @@ a full minhash near-dup pass would only lower net-new slightly further.
 """
 import argparse
 import hashlib
+import json
 import os
 import re
 import unicodedata
@@ -97,27 +98,92 @@ def _fw_range(args):
     return nd, nc, dd, dc
 
 
+_EMIT_DIR = None  # set in parent before Pool() -> inherited COW by fork'd workers
+
+
+def _fw_filter_range(args):
+    # Same scan as _fw_range, but non-dup docs are written straight to a per-chunk part
+    # file (never returned through the Pool IPC channel -> avoids piping ~41GB of text).
+    local, lo, hi = args
+    ds = _get_ds(local)
+    n = min(hi, len(ds))
+    nd = nc = dd = dc = 0
+    # Chunk (lo) indices restart at 0 for EACH `local` dir independently (see _chunks) -> a
+    # part filename keyed on lo alone collides across dirs (e.g. a small validation split's
+    # only chunk vs. train's first chunk both have lo=0, silently overwriting one another).
+    # Key the filename on the source dir too so every (local, lo) pair is unique.
+    safe_local = local.strip("/").replace("/", "_")
+    out_path = os.path.join(_EMIT_DIR, f"part-{safe_local}-{lo:09d}.jsonl")
+    with open(out_path, "w", encoding="utf-8") as out:
+        for i in range(lo, n):
+            t = ds[i]["text"]; nd += 1; L = len(t); nc += L
+            h = np.uint64(norm_u64(t))
+            idx = np.searchsorted(_MAFAT, h)
+            if idx < len(_MAFAT) and _MAFAT[idx] == h:
+                dd += 1; dc += L
+            else:
+                out.write(json.dumps({"text": t}, ensure_ascii=False) + "\n")
+    return nd, nc, dd, dc
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mafat", nargs="+", required=True)
+    ap.add_argument("--mafat", nargs="+", default=None, help="required unless --load_hashes is given")
     ap.add_argument("--fineweb", nargs="+", required=True)
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 8) - 1))
     ap.add_argument("--chunk_size", type=int, default=250_000, help="docs per chunk (load-balancing granularity)")
     ap.add_argument("--chars_per_token", type=float, default=4.40)
+    ap.add_argument("--save_hashes", default=None, help="path to persist sorted MAFAT uint64 hash array (.npy)")
+    ap.add_argument("--load_hashes", default=None,
+                    help="path to a previously --save_hashes'd .npy; skips re-hashing --mafat entirely")
+    ap.add_argument("--emit_jsonl", default=None,
+                    help="if set, write non-dup FineWeb docs as {'text':...} jsonl parts into this dir")
+    ap.add_argument("--emit_limit", type=int, default=0,
+                    help="cap total FineWeb docs scanned (across all --fineweb dirs), for smoke tests")
     args = ap.parse_args()
 
-    print(f"[1/2] hashing MAFAT {args.mafat} ({args.workers} workers, chunk {args.chunk_size:,})...", flush=True)
     global _MAFAT
-    _MAFAT, mafat_n = build_sorted(args.mafat, args.workers, args.chunk_size)
-    print(f"   MAFAT: {mafat_n:,} docs -> {len(_MAFAT):,} unique normalized hashes "
-          f"(~{_MAFAT.nbytes/1e9:.1f}GB)", flush=True)
+    if args.load_hashes:
+        print(f"[1/2] loading MAFAT hashes from {args.load_hashes} (skipping re-hash)...", flush=True)
+        _MAFAT = np.load(args.load_hashes)
+        print(f"   loaded {len(_MAFAT):,} unique normalized hashes (~{_MAFAT.nbytes/1e9:.1f}GB)", flush=True)
+    else:
+        if not args.mafat:
+            ap.error("--mafat is required unless --load_hashes is given")
+        print(f"[1/2] hashing MAFAT {args.mafat} ({args.workers} workers, chunk {args.chunk_size:,})...", flush=True)
+        _MAFAT, mafat_n = build_sorted(args.mafat, args.workers, args.chunk_size)
+        print(f"   MAFAT: {mafat_n:,} docs -> {len(_MAFAT):,} unique normalized hashes "
+              f"(~{_MAFAT.nbytes/1e9:.1f}GB)", flush=True)
+
+        if args.save_hashes:
+            np.save(args.save_hashes, _MAFAT)
+            print(f"   saved MAFAT hashes -> {args.save_hashes} ({_MAFAT.nbytes/1e9:.1f}GB)", flush=True)
+
+    fw_fn = _fw_range
+    if args.emit_jsonl:
+        os.makedirs(args.emit_jsonl, exist_ok=True)
+        global _EMIT_DIR
+        _EMIT_DIR = args.emit_jsonl
+        fw_fn = _fw_filter_range
 
     print(f"[2/2] checking FineWeb {args.fineweb} vs MAFAT...", flush=True)
     nd = nc = dd = dc = 0
+    remaining = args.emit_limit if args.emit_limit > 0 else None
     for local in args.fineweb:
         chunks, n = _chunks(local, args.chunk_size)
+        if remaining is not None:
+            if remaining <= 0:
+                break
+            capped = []
+            for (loc, lo, hi) in chunks:
+                if remaining <= 0:
+                    break
+                hi2 = min(hi, lo + remaining)
+                capped.append((loc, lo, hi2))
+                remaining -= (hi2 - lo)
+            chunks = capped
         with Pool(args.workers, maxtasksperchild=8) as p:  # fork AFTER _MAFAT set -> COW; recycle to free shard cache
-            for a, b, c, e in p.imap_unordered(_fw_range, chunks):
+            for a, b, c, e in p.imap_unordered(fw_fn, chunks):
                 nd += a; nc += b; dd += c; dc += e
 
     net_docs, net_chars = nd - dd, nc - dc

@@ -384,7 +384,13 @@ def init_from_checkpoint(cfg: DictConfig, new_model: nn.Module):
 
     checkpoint_filepath = Path(cfg.checkpoint_load_path) / f"{cfg.checkpoint_run_name}" / "latest-rank0.pt"
     assert checkpoint_filepath.exists(), f"Checkpoint {checkpoint_filepath} does not exist"
-    state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
+    # weights_only=False is REQUIRED on torch >= 2.6, which flipped this default to True: a Composer
+    # checkpoint carries non-tensor state (datetime.timedelta among others) and the restricted
+    # unpickler rejects it with "Unsupported global: GLOBAL datetime.timedelta". This is our own
+    # checkpoint, so full unpickling is safe -- Composer's own loader does the same.
+    state = torch.load(
+        _ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu", weights_only=False
+    )
 
     state_dict = state.get("state", {})
     model_state = state_dict.get("model", {})
@@ -446,6 +452,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
             cfg=cfg.eval_loader,
             tokenizer=model.tokenizer,
             device_batch_size=cfg.get("device_eval_batch_size", global_eval_batch_size // dist.get_world_size()),
+            device_microbatch_size=cfg.get("device_eval_microbatch_size", None),
         )
         eval_evaluator = Evaluator(
             label="eval",

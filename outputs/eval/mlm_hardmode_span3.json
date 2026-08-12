@@ -1,0 +1,139 @@
+{
+  "config": {
+    "docs_per_dataset": 150,
+    "masks_per_doc": 4,
+    "out": "outputs/eval/mlm_hardmode_span3.json",
+    "extra_model": [],
+    "only": "NeoDictaBERT,retrain FINAL,random-init",
+    "span_len": 3,
+    "rare_pct": 95.0
+  },
+  "results": {
+    "NeoDictaBERT": {
+      "arguana": {
+        "word_acc": 0.9523809523809523,
+        "exact_acc": 0.9523809523809523,
+        "tok_acc": 16.610333172380493,
+        "n_words": 525,
+        "toks_per_word": 3.9447619047619047,
+        "dropped_pct": 0.19011406844106463
+      },
+      "fiqa": {
+        "word_acc": 1.3856812933025404,
+        "exact_acc": 1.3856812933025404,
+        "tok_acc": 19.302325581395348,
+        "n_words": 433,
+        "toks_per_word": 3.972286374133949,
+        "dropped_pct": 0.0
+      },
+      "nfcorpus": {
+        "word_acc": 2.9350104821802936,
+        "exact_acc": 2.9350104821802936,
+        "tok_acc": 23.143725575336518,
+        "n_words": 477,
+        "toks_per_word": 4.828092243186583,
+        "dropped_pct": 0.4175365344467641
+      },
+      "scidocs": {
+        "word_acc": 2.1621621621621623,
+        "exact_acc": 2.1621621621621623,
+        "tok_acc": 19.344978165938866,
+        "n_words": 555,
+        "toks_per_word": 4.126126126126126,
+        "dropped_pct": 0.0
+      },
+      "scifact": {
+        "word_acc": 2.8629856850715747,
+        "exact_acc": 2.8629856850715747,
+        "tok_acc": 18.121363258520365,
+        "n_words": 489,
+        "toks_per_word": 4.920245398773006,
+        "dropped_pct": 0.6097560975609756
+      }
+    },
+    "HMB random-init": {
+      "arguana": {
+        "word_acc": 0.0,
+        "exact_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 526,
+        "toks_per_word": 4.1273764258555135,
+        "dropped_pct": 0.0
+      },
+      "fiqa": {
+        "word_acc": 0.0,
+        "exact_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 435,
+        "toks_per_word": 4.059770114942529,
+        "dropped_pct": 0.0
+      },
+      "nfcorpus": {
+        "word_acc": 0.0,
+        "exact_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 481,
+        "toks_per_word": 5.241164241164241,
+        "dropped_pct": 0.2074688796680498
+      },
+      "scidocs": {
+        "word_acc": 0.0,
+        "exact_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 553,
+        "toks_per_word": 4.365280289330922,
+        "dropped_pct": 0.0
+      },
+      "scifact": {
+        "word_acc": 0.0,
+        "exact_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 482,
+        "toks_per_word": 5.41701244813278,
+        "dropped_pct": 0.4132231404958678
+      }
+    },
+    "HMB retrain FINAL (p2)": {
+      "arguana": {
+        "word_acc": 0.7604562737642585,
+        "exact_acc": 0.7604562737642585,
+        "tok_acc": 16.674343620451406,
+        "n_words": 526,
+        "toks_per_word": 4.1273764258555135,
+        "dropped_pct": 0.0
+      },
+      "fiqa": {
+        "word_acc": 0.45977011494252873,
+        "exact_acc": 0.45977011494252873,
+        "tok_acc": 18.23329558323896,
+        "n_words": 435,
+        "toks_per_word": 4.059770114942529,
+        "dropped_pct": 0.0
+      },
+      "nfcorpus": {
+        "word_acc": 1.6632016632016633,
+        "exact_acc": 1.6632016632016633,
+        "tok_acc": 18.722729075763585,
+        "n_words": 481,
+        "toks_per_word": 5.241164241164241,
+        "dropped_pct": 0.2074688796680498
+      },
+      "scidocs": {
+        "word_acc": 1.4466546112115732,
+        "exact_acc": 1.4466546112115732,
+        "tok_acc": 18.144159072079535,
+        "n_words": 553,
+        "toks_per_word": 4.365280289330922,
+        "dropped_pct": 0.0
+      },
+      "scifact": {
+        "word_acc": 1.2448132780082988,
+        "exact_acc": 1.2448132780082988,
+        "tok_acc": 15.090003829950211,
+        "n_words": 482,
+        "toks_per_word": 5.41701244813278,
+        "dropped_pct": 0.4132231404958678
+      }
+    }
+  }
+}

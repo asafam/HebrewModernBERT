@@ -176,3 +176,13 @@ logs
 models
 outputs.micromamba
 tokenizer-save-dir-*/
+
+# --- added 2026-08-12 ---
+# Exported HF models: 29GB + 1.8GB of weights, never belongs in git.
+outputs/hf/
+outputs/hf_test/
+# ...but DO keep the small eval result JSONs (~120KB, no corpus text) -- they are the record
+# behind docs/LARGE_TRAINING.md and docs/RETRIEVAL_EVAL.md.
+!outputs/eval/
+# Standalone micromamba binary (18MB ELF), a local bootstrap tool.
+.micromamba

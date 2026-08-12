@@ -1,25 +1,18 @@
-# ############################################################################
-# DEPRECATED (2026-08-11) -- DO NOT LAUNCH. Superseded by yamls/main/base_hebrew_large/.
-# This is a Jun-18 draft predating the July/August overhaul: abandoned mixed En/code
-# phase-0.1+0.2 split, mlm_probability 0.3 (the A/B winner is 0.2), NO sequence_packing
-# at 8192 (the exact defect that collapsed base retrieval), microbatch placeholders.
-# `python scripts/preflight_check_configs.py` fails the context-extension files here.
-# ############################################################################
-# Phase 0.2: Hebrew specialization — continued pretraining on Hebrew-only data.
-# Loads phase-0.1 WEIGHTS only (fresh schedule/step); WSD schedule so the final
-# model is growable (resume the pre-anneal checkpoint to extend the run).
-
-run_group: large # checkpoint namespace shared across phases (checkpoints/large/<run>/ckpt)
-data_local: ./data/hebrewmodernbert/hebrew # phase 0.2: SPECIALIZE on Hebrew-only
-data_remote: # If blank, files must be present in data_local
+# HebrewModernBERT — UNIFIED phase-0 pretrain (replaces the old phase-0.1 mixed + phase-0.2 Hebrew).
+# Single Hebrew-only pretrain on the quality-re-weighted corpus (no English/code dilution).
+# Stable schedule (constant LR, NO anneal) — matches ModernBERT's structure: pretrain -> ctx-ext
+# (phase-1) -> anneal (phase-2). The final anneal now lives in phase-2 on the quality-heavy corpus.
+run_group: base # checkpoint namespace shared across phases (checkpoints/base/)
+data_local: ./data/hebrewmodernbert/hebrew_quality # quality-re-weighted Hebrew corpus (build: config/data/train/datasets_hebrew_quality + FineWeb-2)
+data_remote:
 
 max_seq_len: 1024
-tokenizer_name: tokenizer/v4_bpe_150k # BPE 150K beats DictaBERT: 1.302 tok/word, 0% UNK
-mlm_probability: 0.3
+tokenizer_name: tokenizer/v4_bpe_150k # BPE 150K, 1.302 tok/word, 0% UNK
+mlm_probability: 0.3 # 30% masking
 count_padding_tokens: false # count only REAL tokens toward max_duration
 
 # Run Name
-run_name: modern-bert-large-phase-0.2-pretrain
+run_name: modern-bert-base-phase-0-pretrain
 
 # Model
 model:
@@ -27,12 +20,11 @@ model:
   recompute_metric_loss: false
   pretrained_model_name: bert-base-uncased
   tokenizer_name: ${tokenizer_name}
-
   model_config:
-    num_attention_heads: 16
-    num_hidden_layers: 28
-    hidden_size: 1024
-    intermediate_size: 2624
+    num_attention_heads: 12
+    num_hidden_layers: 22
+    hidden_size: 768
+    intermediate_size: 1152
     layer_norm_eps: 1e-5
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
@@ -98,14 +90,15 @@ train_loader:
     local: ${data_local}
     remote: ${data_remote}
     split: train
-    streaming: false # NoStreamingDataset: local MDS is uncompressed; avoids multi-GPU hang
+    streaming: false
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
     mlm_probability: ${mlm_probability}
   drop_last: true
   num_workers: 8
-  # batch_size_warmup removed: loading from stable pretrained weights; WSD LR warmup handles adaptation
+  batch_size_warmup_min_size: ${device_train_microbatch_size}
+  batch_size_warmup_tokens: 50_000_000_000tok
 
 eval_loader:
   name: text
@@ -123,14 +116,13 @@ eval_loader:
 
 # Optimization
 scheduler:
-  name: warmup_stable_decay # WSD: brief re-warm -> stable -> anneal. Growable.
-  t_warmup: 0.02dur
-  t_decay: 0.1dur
-  alpha_f: 0.02
+  name: constant_with_warmup # stable pretrain; NO anneal here (the anneal is phase-2 on the quality corpus)
+  t_warmup: 0.06dur
+  t_max: ${max_duration}
 
 optimizer:
   name: decoupled_stableadamw
-  lr: 5.0e-4 # Peak LR for large (slightly lower than base's 8e-4)
+  lr: 8.0e-4 # Peak LR (matches ModernBERT)
   betas:
   - 0.9
   - 0.98
@@ -139,18 +131,32 @@ optimizer:
   filter_bias_norm_wd: true
   log_grad_norm: true
 
-max_duration: 100_000_000_000tok # 100B REAL tokens (~0.5 epoch of the ~193B Hebrew corpus)
+# ~1 epoch over the quality corpus (curated sources are upsampled ~5x in the BUILD, so
+# 1 train epoch = ~5 curated epochs = the overfitting cap). Do NOT raise to multiple epochs
+# or curated over-repeats. Tune together with the build size.
+# CORRECTED 2026-07-22: the actual built corpus (data/hebrewmodernbert/hebrew_quality,
+# now including FineWeb-2) sums its sources' own tokens_target exactly as built:
+# hec4_clean 34.50B + fineweb2_hebrew 30.00B + yifat_long 28.40B + yifat_fragments 19.30B
+# + oscar 4.90B + hebnli 6.60B + tzenzura 3.30B + books 2.15B + wikipedia 1.10B + news 0.85B
+# = 131.1B tokens (confirmed via the build job's per-source yield log). The mix config's
+# own header comment's "~161B" figure never matched this sum (a pre-existing, ~30B
+# discrepancy in its rough percentage breakdown) -- 130B keeps max_duration safely at
+# ~1 epoch without overshooting into a second, partial loop over the corpus.
+max_duration: 130_000_000_000tok
 eval_interval: 10000ba
 eval_subset_num_batches: 100
 
 # System
 seed: 17
 global_train_batch_size: 4608
-device_train_microbatch_size: 128 # tune after smoke test (large model is ~2.2x base)
+device_train_microbatch_size: 576 # B200-validated 2026-07-22 (auto-search + compile=true de-risk,
+                                   # no OOM, job 18317048): ~317.6K tok/s/device with compile=true.
+                                   # Was 288 (H200-tuned, never re-validated on B200). For the
+                                   # LARGE model this must be re-tuned downward.
 precision: amp_bf16
 
 global_eval_batch_size: 1024
-device_eval_microbatch_size: 64
+device_eval_microbatch_size: 128
 
 # Logging
 progress_bar: true
@@ -169,19 +175,18 @@ callbacks:
 
 loggers:
   wandb:
-    project: HebModernBERT-large-phase0.2
+    project: HebModernBERT-phase0
     entity: asafam
     init_kwargs:
       resume: allow
-      id: hebrewmodernbert-large-phase-0.2
+      allow_val_change: true # let num_gpus_per_node change across GPU-count scale-ups/requeues (else wandb ConfigError)
+      id: hebrewmodernbert-base-phase-0  # stable across requeues -> one continuous W&B curve
 
 checkpoint_dir: "checkpoints"
 save_interval: 4000ba
 save_num_checkpoints_to_keep: -1
 save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 
-load_path: ${checkpoint_dir}/${run_group}/modern-bert-large-phase-0.1-pretrain/ckpt/latest-rank0.pt
-load_weights_only: true # fresh schedule/step from phase-0.1 weights
-
-spin_dataloaders: false # skip dataloader fast-forward on resume (NoStreamingDataset would re-iterate 200M+ docs -> hang)
-autoresume: true # on requeue, resume from latest checkpoint in save_folder
+# phase-0 trains from scratch — no load_path.
+spin_dataloaders: false
+autoresume: true

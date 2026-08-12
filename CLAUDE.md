@@ -37,21 +37,29 @@ Evals: GLUE for a ModernBERT checkpoint via `run_evals.py` (give it a checkpoint
 
 ## Multi-phase pre-training
 
-Training is staged; each phase is a separate YAML run, fed the previous phase's checkpoint via `load_path` / `pretrained_checkpoint`:
-- **phase-0.1-pretrain** — main MLM pre-training at `max_seq_len: 1024`, 30% masking.
-- **phase-0.2-pretrain** — continued pre-training.
-- **phase-1-contextextension** / **phase-2-contextextension** — extend context length (raise `max_seq_len` and `rotary_emb_base`).
+Training is staged; each phase is a separate YAML run, fed the previous phase's weights via `load_path` + `load_weights_only: true` (fresh optimizer/schedule/clock):
+- **phase-0-pretrain** — unified Hebrew-only MLM pre-training at `max_seq_len: 1024`, **20% masking**, constant LR (no anneal), ~130B tokens on `hebrew_quality`.
+- **phase-1-contextextension** — extend to `max_seq_len: 8192` with `sequence_packing: true`, ~40B tokens.
+- **phase-2-contextextension** — curated-heavy anneal at 8192 (`one_minus_sqrt` LR→0), ~15B tokens on `hebrew_quality_anneal`.
 
-Parallel config trees exist for three model sizes: `yamls/main/base/`, `yamls/main/base_hebrew/`, `yamls/main/large/`. The `base_hebrew` tree is the active Hebrew run; `base`/`large` are the upstream/English-style references. When editing a Hebrew config, check whether the same change is needed in the other phases of the same tree, since they share architecture and only differ in seq-len/checkpoint wiring.
+The older **phase-0.1 (mixed En/code) + phase-0.2 (Hebrew specialize)** split is superseded — those YAMLs are kept only as history.
+
+Active config trees: **`yamls/main/base_hebrew/`** (the trained base) and **`yamls/main/base_hebrew_large/`** (the large model; warm-started from base by weight tiling — see `docs/TRAINING.md` §8). **`yamls/main/base/` and `yamls/main/large/` are deprecated** — `base/` still carries the old 100K tokenizer and `large/` predates the overhaul. Do not use either as a template. When editing a config, check whether the same change is needed in the other phases of the same tree; `scripts/preflight_check_configs.py` catches the common mistakes without needing a GPU.
 
 Key Hebrew-specific knobs in these YAMLs (they must stay consistent with the tokenizer and `convert_to_hf` args):
-- `tokenizer_name: tokenizer` — points at the local `tokenizer/` dir (SentencePiece, see below), **not** a HF hub name.
-- `vocab_size: ~100002`, `pad_token_id: 100001`, `bos/cls_token_id: 2`, `eos/sep_token_id: 3`.
-- `save_folder` / `load_path` are templated off `${checkpoint_dir}/${data_corpus}/${run_name}`; `data_corpus: hebrew`.
+- `tokenizer_name: tokenizer/v4_bpe_150k` — a local path, **not** a HF hub name.
+- `vocab_size: 150016`, `pad_token_id: 0`, `bos/cls_token_id: 2`, `eos/sep_token_id: 3`, `mask_token_id: 4`.
+- `save_folder` / `load_path` are templated off `${checkpoint_dir}/${run_group}/${run_name}`; `run_group` is `base` or `large`.
 
 ## Tokenizer
 
-The Hebrew tokenizer is a custom SentencePiece model checked into `tokenizer/` (`spiece.model`, `HebrewModernBERT_mixed_1M_100K.vocab`, ~100K vocab) with versioned variants in `tokenizer/tokenizer_v1` and `tokenizer/tokenizer_v2`. Configs reference it by the local path `tokenizer`. Token IDs are hardcoded across the training YAMLs and `scripts/convert_to_hf_hebmodernbert.sh` — if you change the tokenizer, update all three: special-token IDs, `vocab_size`, and the model embedding size. The `tokenizer-save-dir-*/` directories in the repo root are scratch output and not the source of truth.
+The current tokenizer is **`tokenizer/v4_bpe_150k`** — a 150,016-vocab BPE fast tokenizer (`tokenizer.json`), trained in a Unigram-vs-BPE bake-off (`scripts/train_tokenizer_bakeoff.sh`) on a Hebrew-heavy corpus. 1.302 tokens/word with 0% UNK, beating DictaBERT's ~1.31. Special IDs: `[PAD]=0 [UNK]=1 [CLS]=2 [SEP]=3 [MASK]=4`; 150016 = 1172x128, tensor-core friendly.
+
+**Always load it with `use_fast=True`** — the `bert25` env cannot read `tokenizer.json`; use `bert-b200`.
+
+Superseded and NOT to be used: the older ~100K SentencePiece model at `tokenizer/` root (`spiece.model`, `HebrewModernBERT_mixed_1M_100K.vocab`) and `tokenizer/tokenizer_v{1,2}`, plus any `spm.model`/`spiece.model` found inside older HF export dirs — those are the old 100K vocab. The `tokenizer-save-dir-*/` directories are scratch output.
+
+Token IDs are hardcoded across the training YAMLs and `scripts/convert_to_hf_hebmodernbert.sh` — if you change the tokenizer, update all three: special-token IDs, `vocab_size`, and the model embedding size.
 
 ## Data
 

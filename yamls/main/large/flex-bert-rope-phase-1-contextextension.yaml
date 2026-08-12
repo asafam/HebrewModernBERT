@@ -1,3 +1,10 @@
+# ############################################################################
+# DEPRECATED (2026-08-11) -- DO NOT LAUNCH. Superseded by yamls/main/base_hebrew_large/.
+# This is a Jun-18 draft predating the July/August overhaul: abandoned mixed En/code
+# phase-0.1+0.2 split, mlm_probability 0.3 (the A/B winner is 0.2), NO sequence_packing
+# at 8192 (the exact defect that collapsed base retrieval), microbatch placeholders.
+# `python scripts/preflight_check_configs.py` fails the context-extension files here.
+# ############################################################################
 # Phase 1: Context extension 1024 -> 8192. Loads phase-0.2 checkpoint.
 
 run_group: large

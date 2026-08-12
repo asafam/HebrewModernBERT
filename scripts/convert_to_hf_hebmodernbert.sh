@@ -9,10 +9,19 @@
 #   bash scripts/convert_to_hf_hebmodernbert.sh
 
 # Activate the bert-b200 conda environment (newer transformers that knows modernbert + sm_100)
-echo "Activating Conda environment: bert-b200"
-source "$(conda info --base)/etc/profile.d/conda.sh"  # Ensure Conda is properly initialized
-conda activate bert-b200
-echo "Conda environment activated."
+# Activate bert-b200 only if we are not ALREADY inside it. When this script is called from a slurm
+# job that already ran `conda activate bert-b200`, `conda info --base` can resolve wrongly and the
+# activation fails noisily (`/usr/etc/profile.d/conda.sh: No such file`) while the job still succeeds
+# by inheriting the parent env -- a confusing near-miss that `set -e` in the caller does NOT catch.
+if [ "${CONDA_DEFAULT_ENV:-}" = "bert-b200" ]; then
+    echo "Already in bert-b200; skipping activation."
+else
+    echo "Activating Conda environment: bert-b200"
+    source "$(conda info --base)/etc/profile.d/conda.sh" || \
+      source "$HOME/miniconda3/etc/profile.d/conda.sh"
+    conda activate bert-b200 || { echo "ERROR: could not activate bert-b200"; exit 1; }
+    echo "Conda environment activated."
+fi
 
 # --- configurable inputs (defaults = phase-2 final) ---
 YAML="${YAML:-yamls/main/base_hebrew/flex-bert-rope-phase-2-contextextension.yaml}"

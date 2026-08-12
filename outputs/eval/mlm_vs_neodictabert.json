@@ -1,0 +1,198 @@
+{
+  "config": {
+    "docs_per_dataset": 150,
+    "masks_per_doc": 4,
+    "out": "outputs/eval/mlm_vs_neodictabert.json"
+  },
+  "results": {
+    "NeoDictaBERT": {
+      "arguana": {
+        "word_acc": 46.65523156089194,
+        "tok_acc": 49.93084370677732,
+        "n_words": 583
+      },
+      "fiqa": {
+        "word_acc": 46.82675814751286,
+        "tok_acc": 51.532033426183844,
+        "n_words": 583
+      },
+      "nfcorpus": {
+        "word_acc": 51.46443514644351,
+        "tok_acc": 54.121306376360806,
+        "n_words": 478
+      },
+      "scidocs": {
+        "word_acc": 48.85361552028219,
+        "tok_acc": 53.13868613138686,
+        "n_words": 567
+      },
+      "scifact": {
+        "word_acc": 44.16342412451362,
+        "tok_acc": 49.70501474926254,
+        "n_words": 514
+      }
+    },
+    "HMB random-init": {
+      "arguana": {
+        "word_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 136
+      },
+      "fiqa": {
+        "word_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 122
+      },
+      "nfcorpus": {
+        "word_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 124
+      },
+      "scidocs": {
+        "word_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 113
+      },
+      "scifact": {
+        "word_acc": 0.0,
+        "tok_acc": 0.0,
+        "n_words": 140
+      }
+    },
+    "HMB ctrl-m30 @ba76000": {
+      "arguana": {
+        "word_acc": 0.7352941176470589,
+        "tok_acc": 76.30057803468208,
+        "n_words": 136
+      },
+      "fiqa": {
+        "word_acc": 4.098360655737705,
+        "tok_acc": 76.97841726618705,
+        "n_words": 122
+      },
+      "nfcorpus": {
+        "word_acc": 1.6129032258064515,
+        "tok_acc": 67.33668341708542,
+        "n_words": 124
+      },
+      "scidocs": {
+        "word_acc": 1.7699115044247788,
+        "tok_acc": 78.70967741935483,
+        "n_words": 113
+      },
+      "scifact": {
+        "word_acc": 2.857142857142857,
+        "tok_acc": 72.64150943396227,
+        "n_words": 140
+      }
+    },
+    "HMB arm1-m20 @ba76000": {
+      "arguana": {
+        "word_acc": 0.7352941176470589,
+        "tok_acc": 74.56647398843931,
+        "n_words": 136
+      },
+      "fiqa": {
+        "word_acc": 4.918032786885246,
+        "tok_acc": 77.6978417266187,
+        "n_words": 122
+      },
+      "nfcorpus": {
+        "word_acc": 1.6129032258064515,
+        "tok_acc": 72.8643216080402,
+        "n_words": 124
+      },
+      "scidocs": {
+        "word_acc": 1.7699115044247788,
+        "tok_acc": 78.70967741935483,
+        "n_words": 113
+      },
+      "scifact": {
+        "word_acc": 2.857142857142857,
+        "tok_acc": 73.58490566037736,
+        "n_words": 140
+      }
+    },
+    "HMB phase-0 FINAL": {
+      "arguana": {
+        "word_acc": 0.7352941176470589,
+        "tok_acc": 75.72254335260115,
+        "n_words": 136
+      },
+      "fiqa": {
+        "word_acc": 4.098360655737705,
+        "tok_acc": 77.6978417266187,
+        "n_words": 122
+      },
+      "nfcorpus": {
+        "word_acc": 1.6129032258064515,
+        "tok_acc": 71.35678391959799,
+        "n_words": 124
+      },
+      "scidocs": {
+        "word_acc": 1.7699115044247788,
+        "tok_acc": 76.12903225806451,
+        "n_words": 113
+      },
+      "scifact": {
+        "word_acc": 3.5714285714285716,
+        "tok_acc": 74.52830188679245,
+        "n_words": 140
+      }
+    },
+    "HMB retrain FINAL (p2)": {
+      "arguana": {
+        "word_acc": 0.7352941176470589,
+        "tok_acc": 78.61271676300578,
+        "n_words": 136
+      },
+      "fiqa": {
+        "word_acc": 4.918032786885246,
+        "tok_acc": 82.01438848920863,
+        "n_words": 122
+      },
+      "nfcorpus": {
+        "word_acc": 1.6129032258064515,
+        "tok_acc": 73.86934673366834,
+        "n_words": 124
+      },
+      "scidocs": {
+        "word_acc": 1.7699115044247788,
+        "tok_acc": 76.7741935483871,
+        "n_words": 113
+      },
+      "scifact": {
+        "word_acc": 2.857142857142857,
+        "tok_acc": 78.30188679245283,
+        "n_words": 140
+      }
+    },
+    "HMB OLD shipped": {
+      "arguana": {
+        "word_acc": 0.0,
+        "tok_acc": 57.225433526011564,
+        "n_words": 136
+      },
+      "fiqa": {
+        "word_acc": 2.459016393442623,
+        "tok_acc": 55.39568345323741,
+        "n_words": 122
+      },
+      "nfcorpus": {
+        "word_acc": 1.6129032258064515,
+        "tok_acc": 55.778894472361806,
+        "n_words": 124
+      },
+      "scidocs": {
+        "word_acc": 0.8849557522123894,
+        "tok_acc": 56.12903225806452,
+        "n_words": 113
+      },
+      "scifact": {
+        "word_acc": 0.7142857142857143,
+        "tok_acc": 55.18867924528302,
+        "n_words": 140
+      }
+    }
+  }
+}

@@ -1,3 +1,10 @@
+# HebrewModernBERT-LARGE phase-1: derived from yamls/main/base_hebrew/flex-bert-rope-phase-1-contextextension.yaml
+# (the validated base recipe), NOT from the stale yamls/main/large/ tree. Deriving from the base
+# file is what carries the full docs/TRAINING.md §5 context-extension fix stack verbatim:
+# sequence_packing:true on BOTH loaders, loss_kwargs.inplace_backward:true, streaming:false,
+# load_weights_only:true, spin_dataloaders:false, local_attn_rotary_emb_base.
+# Deltas vs base: architecture 28L/1024/16heads/2624, run_group large, chained load_path,
+# and a smaller microbatch (large is ~2.2x the params; the 150K-vocab logits dominate at 8192).
 # HebrewModernBERT phase-1: context extension 1024 -> 8192.
 # FIX (vs the damaged old run): use the per-DOCUMENT quality corpus + sequence_packing:true.
 # The GreedyBestFitSequencePacker then packs documents on-the-fly and emits correct per-doc
@@ -5,7 +12,7 @@
 # all-ones mask -> full cross-doc attention -> the 0.165->0.142 retrieval collapse).
 # NOTE at launch: clear any stale checkpoints under this run_name (autoresume would resume the
 # OLD damaged phase-1) before the first start of the new chain.
-run_group: base
+run_group: large
 data_local: ./data/hebrewmodernbert/hebrew_quality # per-document quality corpus (NOT pre-packed)
 data_remote:
 
@@ -14,7 +21,7 @@ tokenizer_name: tokenizer/v4_bpe_150k
 mlm_probability: 0.2  # Stage 1 A/B winner (2026-07-30): 20% beat 30% by +0.036 avg NDCG@10 (+39% relative), matched checkpoint, see docs/RETRIEVAL_EVAL.md
 count_padding_tokens: false
 
-run_name: modern-bert-base-phase-1-contextextension
+run_name: modern-bert-large-phase-1-contextextension
 
 model:
   name: flex_bert
@@ -22,10 +29,10 @@ model:
   tokenizer_name: ${tokenizer_name}
   disable_train_metrics: true
   model_config:
-    num_attention_heads: 12
-    num_hidden_layers: 22
-    hidden_size: 768
-    intermediate_size: 1152
+    num_attention_heads: 16
+    num_hidden_layers: 28
+    hidden_size: 1024
+    intermediate_size: 2624
     layer_norm_eps: 1e-5
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
@@ -40,7 +47,16 @@ model:
     loss_function: fa_cross_entropy
     loss_kwargs:
       reduction: mean
-      inplace_backward: true # reuse logits buffer for grad (fixes 150K-vocab backward OOM)
+      inplace_backward: true
+      # NOTE (verified 2026-08-11): this is a NO-OP. FlexBertConfig.__init__
+      # (src/bert_layers/configuration_bert.py:227-229) unconditionally resets
+      # inplace_backward to False with a warning, and nothing re-enables it. Kept only for
+      # parity with the base run, which produced its numbers under the same no-op. What
+      # ACTUALLY carries the 150K-vocab backward at 8192 is the small microbatch +
+      # masked_prediction:true + PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True.
+      # If large OOMs at 8192, making that guard conditional on disable_train_metrics:true
+      # (which phases 1/2 already set, so "incorrect metrics" would be moot) is an
+      # available memory lever -- but it is a behaviour change, so measure first.
     max_position_embeddings: ${max_seq_len}
     mlp_dropout_prob: 0.0
     mlp_in_bias: false
@@ -99,6 +115,7 @@ train_loader:
     max_seq_len: ${max_seq_len}
     shuffle: true
     mlm_probability: ${mlm_probability}
+    shuffle_seed: 71 # 17 reversed -- same corpus, different presentation; see note below
   drop_last: true
   num_workers: 4
   sequence_packing: true # THE FIX: pack per-document -> per-doc cu_seqlens -> NO cross-doc attention
@@ -142,13 +159,23 @@ eval_interval: 1000ba
 eval_subset_num_batches: 50
 
 # System
-seed: 17
+  # DECORRELATE from the base run's data presentation. Large is tile-initialized from a base that
+  # already consumed this exact corpus with the default shuffle_seed, so replaying the identical
+  # document order (and, in the packed phases, the identical packing + mask positions) would be the
+  # most redundant possible second pass. Set on the TRAIN loader only: the eval loader keeps the
+  # defaults and `seed` stays 17, so the eval curve remains directly comparable to base's.
+  # Knobs (src/text_data.py): shuffle_seed drives DistributedSamplerPCG64DXSM (order, default 9176)
+  # and GreedyBestFitSequencePacker (packing + masking, default 42). `seed` drives torch RNG, which
+  # is what masks the non-packed phase-0 batches via DataCollatorForLanguageModeling.
+seed: 17 # unchanged: keeps eval masking identical to the base run
 global_train_batch_size: 576 # tokens/batch held ~constant vs 4608@1024 (8x longer seq)
-device_train_microbatch_size: 16 # dense-8192 packed: 16 gives OOM headroom on B200
+device_train_microbatch_size: 8 # SET FROM SMOKE: base uses 16 at 22L/768; docs/TRAINING.md §8
+                                # says start well below that for large. Also stays far under the flash-attn
+                                # triton rotary int32 ceiling, which is LOWER for large (16 heads, not 12). # dense-8192 packed: 16 gives OOM headroom on B200
 precision: amp_bf16
 
 global_eval_batch_size: 64
-device_eval_microbatch_size: 4
+device_eval_microbatch_size: 2
 
 # Logging
 progress_bar: true
@@ -167,20 +194,24 @@ callbacks:
 
 loggers:
   wandb:
-    project: HebModernBERT-phase1
+    project: HebModernBERT-large-phase1
     entity: asafam
     init_kwargs:
       resume: allow
       allow_val_change: true
-      # no stable `id`: fresh run per launch (a stable id + GPU-count change caused a resume
-      # ConfigError during scale-ups). Sweep old runs periodically.
+      # `id` is set by the launch script as ${RUN_NAME}-g${NGPUS}. This supersedes the base
+      # phase-1/2 approach of "no stable id, fresh run per launch": suffixing the id with the GPU
+      # count keeps one continuous curve per GPU count while still sidestepping the ConfigError
+      # (composer's WandBLogger.log_hyperparameters() calls wandb.config.update() with no
+      # allow_val_change, so a stable id whose locked num_gpus_per_node changes hard-crashes).
+      # Checkpoint resume is keyed on run_name, not the W&B id, so this costs no progress.
 
 checkpoint_dir: "checkpoints"
 save_interval: 100ba
 save_num_checkpoints_to_keep: 10
 save_folder: ${checkpoint_dir}/${run_group}/${run_name}/ckpt
 
-load_path: ${checkpoint_dir}/${run_group}/phase-0-arm1-m20/ckpt/latest-rank0.pt # Stage 1 A/B winner (20% masking) -- see docs/RETRIEVAL_EVAL.md
+load_path: ${checkpoint_dir}/${run_group}/modern-bert-large-phase-0-pretrain/ckpt/latest-rank0.pt
 load_weights_only: true # load phase-0 WEIGHTS only -> fresh optimizer/schedule/clock
 
 spin_dataloaders: false

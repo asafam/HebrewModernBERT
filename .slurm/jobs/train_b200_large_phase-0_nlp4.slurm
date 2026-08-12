@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --job-name=hmb-lg-p0-nlp4
+#SBATCH --output=.slurm/logs/hmb-lg-p0-nlp4_%j.out
+#SBATCH --error=.slurm/logs/hmb-lg-p0-nlp4_%j.err
+#SBATCH --partition=p_b200_nlp
+#SBATCH --account=ug_goldberg  # both p_b200_* partitions require an explicit account
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:4
+#SBATCH --ntasks-per-node=1    # one task; Composer spawns the GPU processes (DDP) itself
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=1200GB   # raised from 480GB: the live run's RSS hit 374GB of 480GB. NoStreamingDataset
+                       # mmaps the MDS files, so mmap'd pages count toward the cgroup limit -- random
+                       # reads across a 965GB corpus under a 480GB cap thrash the page cache. The node
+                       # has 1.9TB with ~1.1TB allocated. NOTE: an automatic --requeue reuses the
+                       # ORIGINAL allocation, so this only takes effect on a fresh sbatch.
+#SBATCH --time=04:00:00
+#SBATCH --requeue
+#SBATCH --mail-user=achimoa@biu.ac.il
+#SBATCH --mail-type=END,FAIL,REQUEUE
+
+# LARGE phase-0 (130B tokens, 1024 ctx, warm-started from base) on p_b200_nlp's 4-GPU entitlement.
+#
+# p_b200_nlp caps at 4 GPUs and 4h, and the QOS GrpTRES is shared with ug_tsarfaty/ug_dagan -- 4 GPUs
+# are NOT guaranteed at submit time. There is no partition reachable from this account offering both
+# >4h and >2 GPUs, so autoresume:true + spin_dataloaders:false + --requeue is what carries this run
+# across the ~33 requeues it needs. Follow the contention playbook in docs/TRAINING.md §6:
+# never cancel a running job speculatively, never idle (take 1 GPU over 0), scale up only when
+# >=2 GPUs are genuinely free. Override the GPU count at submit: sbatch --gres=gpu:N <this file>
+
+# Run a SNAPSHOT of the wrapper, not the file in the repo. Bash reads a script incrementally from a
+# byte offset, so editing the wrapper while a job is running corrupts that job's parse mid-execution
+# (this killed smoke job 21316657 at its epilogue after a clean 60/60 run). Over a multi-week phase-0
+# with ~33 requeues, editing scripts between requeues is normal -- snapshotting makes it safe.
+SNAP="${SLURM_TMPDIR:-/tmp}/$(basename scripts/train_modernbert_large_phase-0-pretrain.sh).${SLURM_JOB_ID:-$$}"
+cp "scripts/train_modernbert_large_phase-0-pretrain.sh" "$SNAP"
+bash "$SNAP"
+RC=$?
+rm -f "$SNAP"
+exit $RC
