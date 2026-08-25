@@ -161,9 +161,33 @@ This gate also validated the **export path for large** — `convert_to_hf` produ
 `modernbert` config (28L/1024/16/2624, vocab 150016, rope 160000/10000, `mask_token_id: 4`),
 closing the last unticked item of `docs/TRAINING.md` §8.
 
-### ba36000 — 19.8B tokens — the real decision gate
-Submitted as job `21736912`. **Reading:** base's own curve reached 45.0 at 41.8B tokens, so large
-beating ~45 at half that token count is the strong signal that the warm start is compounding.
+### ba36000 — 19.8B tokens (15%), 2026-08-12 — the decision gate: **PASS**
+
+| model | arguana | fiqa | nfcorpus | scidocs | scifact | **MEAN** |
+|---|---|---|---|---|---|---|
+| NeoDictaBERT | 43.7 | 45.3 | 51.6 | 52.5 | 41.2 | **46.9** |
+| HMB phase-0 FINAL *(tile source, full 130B)* | 41.3 | 45.2 | 48.9 | 45.9 | 38.2 | **43.9** |
+| **HMB large @ba36000** | **43.7** | **45.9** | 48.4 | 47.2 | 39.6 | **45.0** |
+
+**Large has overtaken the model it was tiled from, at 15% of the token budget** — base phase-0 FINAL
+is the complete 130B-token model. It also matches NeoDictaBERT on arguana and beats it on fiqa.
+
+Absolutes shift between gates (NeoDictaBERT read 49.9 / 48.6 / 46.9 across three runs), so the
+calibration-independent measure is the **delta against the in-run references**:
+
+| gate | vs base phase-0 | vs NeoDictaBERT |
+|---|---|---|
+| ba6000 (3.3B, 2.5%) | -0.4 | -4.2 |
+| **ba36000 (19.8B, 15%)** | **+1.1** | **-1.9** |
+| movement | **+1.5** | **+2.3** |
+
+The gap to NeoDictaBERT **halved** between the two gates.
+
+*Calibration caveat:* at ~2,700 scored words the independent SE on a ~44% rate is ~1.0 point, so
++1.1 alone is ~1 SE. The comparison is paired (identical words and masks across models), which
+tightens it, and the trend moving the same direction on **both** references across two independent
+gates is more persuasive than either point alone. Treat as a solid positive signal, not a proven
+margin. Sanity: 2,695-2,699 words, 0% dropped, HMB 1.38 tok/word vs NeoDictaBERT 1.30.
 
 ## 6. Operational rules learned
 
@@ -182,12 +206,57 @@ beating ~45 at half that token count is the strong signal that the warm start is
 - The **1-GPU fallback is genuinely dataloader-bound** (~3.6x penalty at 4608 device batch) — a
   stopgap when the 4-GPU lane is blocked, not a comfortable steady state.
 
+
+## 8. Autonomous completion chain (set up 2026-08-25)
+
+Phase-0 took **14 calendar days for ~29 h of compute** — it held GPUs only **~20% of the time**.
+The training never failed (20 requeues, all clean); the loss was purely GPU contention on the shared
+`p_b200_nlp` QOS, and **nobody worked the §6 contention playbook** because nothing was running
+between sessions. The 1-GPU fallback job existed and was never submitted, not once.
+
+**Fix: a pure slurm dependency chain.** Nothing depends on an agent or a login-node process — the
+same `--requeue` + `autoresume` machinery that carried phase-0 through 20 restarts now carries the
+whole curriculum:
+
+```
+21342052  phase-0  (94% done)
+24875811  phase-1  --dependency=afterok:21342052
+24875812  phase-2  --dependency=afterok:24875811
+```
+
+`afterok` (not `afterany`) is deliberate: if a phase fails, the chain **stops** rather than training
+the next phase on a broken checkpoint.
+
+**Microbatch lowered 8 -> 4 for phases 1/2.** Base validated mb=16 at 22L/768 at 8192; large's
+activation cost scales ~1.70x, so the equivalent is ~9.4 — mb=8 leaves only 1.18x headroom, mb=4
+leaves 2.36x. With the chain running unattended, an OOM would break it and cost days of queue time,
+while mb=4 costs only extra gradient-accumulation steps. Raise to 8-12 only after a smoke validates
+it; the change is picked up automatically at the next requeue (the same mechanism that delivered
+the num_workers fix).
+
+### What still cannot be automated
+- **Contention.** A 4-GPU job cannot run on the 1-GPU Goldberg lane, and slurm here rejects a
+  flexible `--gpus=1-4` request ("Requested node configuration is not available"). Multi-partition
+  submission (`--partition=p_b200_nlp,p_b200_goldberg`) works only for requests that fit both lanes.
+- **`CronCreate` jobs do not survive the session**, so a scheduled caretaker agent is not an option
+  across the weeks this run spans.
+- **The real lever is a SLURM reservation** (§6 flags it) — it needs an admin, not code. At a ~20%
+  duty cycle the remaining 55B tokens of phases 1-2 imply **weeks** of calendar time; with a
+  reservation it would be days.
+
+### Reporting rule for this run
+Quote **calendar** ETAs, not compute-time ones. Phase-0's "~2.4 days" figures were 4-GPU compute
+time and read as wall-clock; the honest number at a 20% duty cycle was ~2 weeks.
+
 ## 7. Open items
 
-- [ ] **ba36000 gate** (job `21736912`) — the real 20B decision point.
-- [ ] Phase-1 (40B @ 8192, packed) — **re-probe the microbatch**; it is a different throughput
-      regime, do not extrapolate phase-0's numbers. Start well below base's 16.
-- [ ] Phase-2 (15B curated anneal @ 8192).
+- [x] **ba36000 gate** — PASS (see §5): large +1.1 over its tile source at 15% of the budget.
+- [x] Phase-0 reached 94% (ba222000, 122.3B) with loss ~1.86-1.91.
+- [ ] Gate the phase-0 FINAL checkpoint once it completes.
+- [x] Phase-1 chained (job 24875811) at a deliberately safe mb=4; optimise to 8-12 only after a smoke.
+- [x] Phase-2 chained (job 24875812).
+- [ ] **Ask for a SLURM reservation** — the only real fix for the ~20% duty cycle.
+- [ ] Prune checkpoints: 111 files / 621GB because Composer's keep-20 tracker resets each requeue.
 - [ ] `--mem` 480GB -> 1200GB on a future fresh `sbatch` (staged in the job file).
 - [ ] **No Hebrew NLU/GLUE eval exists** — decide whether to wire one up while phase-0 runs.
 - [ ] Track B (representation transfer) is scoped separately; large is not expected to close BeIR.

@@ -1,0 +1,141 @@
+{
+  "config": {
+    "docs_per_dataset": 150,
+    "masks_per_doc": 4,
+    "out": "outputs/eval/mlm_large_p0_ba36000.json",
+    "extra_model": [
+      "HMB large @ba36000=outputs/hf/HebrewModernBERT-large-p0-ba36000"
+    ],
+    "only": "NeoDictaBERT,phase-0 FINAL,large",
+    "span_len": 1,
+    "rare_pct": 100.0
+  },
+  "results": {
+    "NeoDictaBERT": {
+      "arguana": {
+        "word_acc": 43.739279588336196,
+        "exact_acc": 43.739279588336196,
+        "tok_acc": 47.543352601156066,
+        "n_words": 583,
+        "toks_per_word": 1.1869639794168096,
+        "dropped_pct": 0.17123287671232876
+      },
+      "fiqa": {
+        "word_acc": 45.29616724738676,
+        "exact_acc": 45.29616724738676,
+        "tok_acc": 48.95688456189151,
+        "n_words": 574,
+        "toks_per_word": 1.2526132404181185,
+        "dropped_pct": 0.0
+      },
+      "nfcorpus": {
+        "word_acc": 51.774530271398746,
+        "exact_acc": 51.56576200417537,
+        "tok_acc": 51.15919629057187,
+        "n_words": 479,
+        "toks_per_word": 1.350730688935282,
+        "dropped_pct": 0.20833333333333334
+      },
+      "scidocs": {
+        "word_acc": 52.65017667844523,
+        "exact_acc": 52.47349823321555,
+        "tok_acc": 53.83522727272727,
+        "n_words": 566,
+        "toks_per_word": 1.243816254416961,
+        "dropped_pct": 0.0
+      },
+      "scifact": {
+        "word_acc": 41.24748490945674,
+        "exact_acc": 41.24748490945674,
+        "tok_acc": 41.4500683994528,
+        "n_words": 497,
+        "toks_per_word": 1.470824949698189,
+        "dropped_pct": 0.20080321285140562
+      }
+    },
+    "HMB phase-0 FINAL": {
+      "arguana": {
+        "word_acc": 41.26712328767123,
+        "exact_acc": 41.26712328767123,
+        "tok_acc": 45.11173184357542,
+        "n_words": 584,
+        "toks_per_word": 1.226027397260274,
+        "dropped_pct": 0.0
+      },
+      "fiqa": {
+        "word_acc": 45.391304347826086,
+        "exact_acc": 45.21739130434783,
+        "tok_acc": 47.767253044654936,
+        "n_words": 575,
+        "toks_per_word": 1.2852173913043479,
+        "dropped_pct": 0.0
+      },
+      "nfcorpus": {
+        "word_acc": 49.06832298136646,
+        "exact_acc": 48.86128364389234,
+        "tok_acc": 46.30681818181818,
+        "n_words": 483,
+        "toks_per_word": 1.4575569358178053,
+        "dropped_pct": 0.0
+      },
+      "scidocs": {
+        "word_acc": 45.936395759717314,
+        "exact_acc": 45.936395759717314,
+        "tok_acc": 46.73024523160763,
+        "n_words": 566,
+        "toks_per_word": 1.2968197879858658,
+        "dropped_pct": 0.0
+      },
+      "scifact": {
+        "word_acc": 38.39835728952772,
+        "exact_acc": 38.19301848049281,
+        "tok_acc": 38.265306122448976,
+        "n_words": 487,
+        "toks_per_word": 1.6098562628336757,
+        "dropped_pct": 0.0
+      }
+    },
+    "HMB large @ba36000": {
+      "arguana": {
+        "word_acc": 43.66438356164384,
+        "exact_acc": 43.66438356164384,
+        "tok_acc": 47.20670391061452,
+        "n_words": 584,
+        "toks_per_word": 1.226027397260274,
+        "dropped_pct": 0.0
+      },
+      "fiqa": {
+        "word_acc": 45.91304347826087,
+        "exact_acc": 45.91304347826087,
+        "tok_acc": 48.71447902571042,
+        "n_words": 575,
+        "toks_per_word": 1.2852173913043479,
+        "dropped_pct": 0.0
+      },
+      "nfcorpus": {
+        "word_acc": 48.65424430641822,
+        "exact_acc": 48.4472049689441,
+        "tok_acc": 46.16477272727273,
+        "n_words": 483,
+        "toks_per_word": 1.4575569358178053,
+        "dropped_pct": 0.0
+      },
+      "scidocs": {
+        "word_acc": 47.17314487632509,
+        "exact_acc": 47.17314487632509,
+        "tok_acc": 47.41144414168937,
+        "n_words": 566,
+        "toks_per_word": 1.2968197879858658,
+        "dropped_pct": 0.0
+      },
+      "scifact": {
+        "word_acc": 39.83572895277207,
+        "exact_acc": 39.630390143737166,
+        "tok_acc": 39.795918367346935,
+        "n_words": 487,
+        "toks_per_word": 1.6098562628336757,
+        "dropped_pct": 0.0
+      }
+    }
+  }
+}

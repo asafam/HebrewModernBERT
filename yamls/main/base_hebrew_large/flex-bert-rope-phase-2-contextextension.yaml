@@ -168,9 +168,15 @@ eval_subset_num_batches: 50
   # is what masks the non-packed phase-0 batches via DataCollatorForLanguageModeling.
 seed: 17 # unchanged: keeps eval masking identical to the base run
 global_train_batch_size: 576
-device_train_microbatch_size: 8 # SET FROM SMOKE: base uses 16 at 22L/768; docs/TRAINING.md §8
-                                # says start well below that for large. Also stays far under the flash-attn
-                                # triton rotary int32 ceiling, which is LOWER for large (16 heads, not 12).
+device_train_microbatch_size: 4 # SAFETY-FIRST for an unattended chain (2026-08-25). Base validated
+                                # mb=16 at 22L/768 at 8192; large's activation cost scales ~1.70x
+                                # ((28/22)x(1024/768)), so the equivalent is ~9.4 -- mb=8 leaves only
+                                # 1.18x headroom, mb=4 leaves 2.36x. Since phases 1/2 run chained via
+                                # slurm dependencies with nobody watching, an OOM would break the chain
+                                # and cost days of queue time; the cost of mb=4 is only extra
+                                # gradient-accumulation steps. Both are far below the flash-attn rotary
+                                # int32 ceiling (~72 for 16 heads). Raise to 8-12 only after the
+                                # phase-1 smoke validates it.
 precision: amp_bf16
 
 global_eval_batch_size: 64
