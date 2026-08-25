@@ -15,6 +15,7 @@
                        # ORIGINAL allocation, so this only takes effect on a fresh sbatch.
 #SBATCH --time=04:00:00
 #SBATCH --requeue
+#SBATCH --signal=B:USR1@180
 #SBATCH --mail-user=achimoa@biu.ac.il
 #SBATCH --mail-type=END,FAIL,REQUEUE
 
@@ -33,7 +34,21 @@
 # with ~33 requeues, editing scripts between requeues is normal -- snapshotting makes it safe.
 SNAP="${SLURM_TMPDIR:-/tmp}/$(basename scripts/train_modernbert_large_phase-0-pretrain.sh).${SLURM_JOB_ID:-$$}"
 cp "scripts/train_modernbert_large_phase-0-pretrain.sh" "$SNAP"
-bash "$SNAP"
+
+# --- wall-safe self-requeue -------------------------------------------------------------
+# slurm's requeue-on-TIMEOUT is not reliable here (job 24881738 died TIMEOUT on its first
+# block and left afterok dependents in DependencyNeverSatisfied, breaking the chain).
+# --signal=B:USR1@180 delivers USR1 to THIS batch script 3 min before the wall; we requeue
+# explicitly. The child must run in the background with `wait` or the trap cannot fire.
+_wall_requeue() {
+    echo "[wall in ~3min] requeueing job $SLURM_JOB_ID so the chain survives"
+    scontrol requeue "$SLURM_JOB_ID"
+}
+trap _wall_requeue USR1
+
+bash "$SNAP" &
+CHILD=$!
+wait $CHILD
 RC=$?
 rm -f "$SNAP"
 exit $RC

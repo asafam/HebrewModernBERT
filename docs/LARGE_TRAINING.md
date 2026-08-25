@@ -259,6 +259,32 @@ while mb=4 costs only extra gradient-accumulation steps. Raise to 8-12 only afte
 it; the change is picked up automatically at the next requeue (the same mechanism that delivered
 the num_workers fix).
 
+
+### Wall-safe self-requeue (added 2026-08-25, after the chain broke)
+
+**Do not trust slurm's requeue-on-TIMEOUT.** Job `24881738` hit the 4h wall and ended `TIMEOUT`
+rather than `REQUEUED`, under the same `#SBATCH --requeue` and the same job file whose predecessor
+(`21342052`) had requeued **20 consecutive times**. `afterok` treats TIMEOUT as failure, so phase-1
+went to `DependencyNeverSatisfied` and the whole chain died silently. It only surfaced because a
+monitor was watching.
+
+All six large train jobs now requeue themselves before the wall instead:
+
+```bash
+#SBATCH --signal=B:USR1@180     # USR1 to the BATCH SCRIPT 3 min before the wall
+trap _wall_requeue USR1         # _wall_requeue -> scontrol requeue $SLURM_JOB_ID
+bash "$SNAP" & CHILD=$!; wait $CHILD   # child MUST be backgrounded or the trap cannot fire
+```
+
+The job therefore never reaches TIMEOUT. When training genuinely completes, composer exits 0, the
+trap does not fire, the job goes `COMPLETED`, and `afterok` releases the next phase.
+
+Two things to remember:
+- The `B:` prefix matters — without it the signal goes to the job steps, not the batch script.
+- `wait` on a backgrounded child is required; a foreground `bash "$SNAP"` blocks trap delivery.
+- **This path is unvalidated until a phase actually hits a wall.** Phase-0's remaining 3.6B fits in
+  one block, so the first real test is phase-1's first wall. Verify it fires; do not assume.
+
 ### What still cannot be automated
 - **Contention.** A 4-GPU job cannot run on the 1-GPU Goldberg lane, and slurm here rejects a
   flexible `--gpus=1-4` request ("Requested node configuration is not available"). Multi-partition
