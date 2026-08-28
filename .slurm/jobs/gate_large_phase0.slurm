@@ -24,7 +24,8 @@
 #
 # Runs on the 1-GPU Goldberg lane so it never competes with phase-0's 4-GPU p_b200_nlp allocation.
 #
-#   sbatch --export=ALL,BA=6000 .slurm/jobs/gate_large_phase0.slurm
+#   sbatch --export=ALL,PHASE=0,BA=6000  .slurm/jobs/gate_large_phase0.slurm
+#   sbatch --export=ALL,PHASE=1,BA=20000 .slurm/jobs/gate_large_phase0.slurm
 set -e
 mkdir -p .slurm/logs outputs/eval
 
@@ -38,20 +39,29 @@ mkdir -p "$TRITON_CACHE_DIR"
 export HF_HUB_OFFLINE=1   # NeoDictaBERT is cached; don't let a hub hiccup stall the job
 
 BA="${BA:?set BA to the checkpoint batch number, e.g. BA=6000}"
-CKPT="checkpoints/large/modern-bert-large-phase-0-pretrain/ckpt/ep0-ba${BA}-rank0.pt"
-NAME="HebrewModernBERT-large-p0-ba${BA}"
+# PHASE selects which run directory / yaml / context length to gate. Phase-1 and phase-2 run at
+# 8192, so MAX_LENGTH must follow or convert_to_hf writes the wrong max_position_embeddings.
+PHASE="${PHASE:-0}"
+case "$PHASE" in
+  0) RUN=modern-bert-large-phase-0-pretrain;         YML=flex-bert-rope-phase-0-pretrain.yaml;         LEN=1024 ;;
+  1) RUN=modern-bert-large-phase-1-contextextension; YML=flex-bert-rope-phase-1-contextextension.yaml; LEN=8192 ;;
+  2) RUN=modern-bert-large-phase-2-contextextension; YML=flex-bert-rope-phase-2-contextextension.yaml; LEN=8192 ;;
+  *) echo "ERROR: PHASE must be 0, 1 or 2"; exit 1 ;;
+esac
+CKPT="checkpoints/large/${RUN}/ckpt/ep0-ba${BA}-rank0.pt"
+NAME="HebrewModernBERT-large-p${PHASE}-ba${BA}"
 [ -f "$CKPT" ] || { echo "ERROR: $CKPT not found"; ls -1 checkpoints/large/modern-bert-large-phase-0-pretrain/ckpt/; exit 1; }
 
 echo "############ STEP 1/2: convert $CKPT -> HF ############"
-YAML=yamls/main/base_hebrew_large/flex-bert-rope-phase-0-pretrain.yaml \
-CKPT="$CKPT" OUTPUT_NAME="$NAME" MAX_LENGTH=1024 \
+YAML=yamls/main/base_hebrew_large/${YML} \
+CKPT="$CKPT" OUTPUT_NAME="$NAME" MAX_LENGTH=${LEN} \
   bash scripts/convert_to_hf_hebmodernbert.sh
 
 echo "############ STEP 2/2: whole-word MLM vs NeoDictaBERT + base ############"
 python scripts/mlm_compare_vs_neodictabert.py \
     --docs_per_dataset "${DOCS:-150}" \
     --masks_per_doc "${MASKS:-4}" \
-    --extra-model "HMB large @ba${BA}=outputs/hf/${NAME}" \
+    --extra-model "HMB large p${PHASE}@ba${BA}=outputs/hf/${NAME}" \
     --only "NeoDictaBERT,phase-0 FINAL,large" \
-    --out "outputs/eval/mlm_large_p0_ba${BA}.json"
-echo "DONE -> outputs/eval/mlm_large_p0_ba${BA}.json"
+    --out "outputs/eval/mlm_large_p${PHASE}_ba${BA}.json"
+echo "DONE -> outputs/eval/mlm_large_p${PHASE}_ba${BA}.json"
