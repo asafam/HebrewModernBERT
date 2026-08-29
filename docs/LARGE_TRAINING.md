@@ -186,6 +186,28 @@ parity with NeoDictaBERT while scoring 0.185 vs their 0.332 on BeIR — the retr
 representation-transfer problem. **No BeIR evaluation of large exists**, and MLM parity does not
 predict retrieval.
 
+
+### Trajectory vs NeoDictaBERT (all gates mutually comparable)
+
+| checkpoint | tokens | **MEAN** | vs NeoDictaBERT (46.9) | vs base phase-0 FINAL (44.0) |
+|---|---|---|---|---|
+| phase-0 @ba6000 | 3.3B | 43.1 | -3.8 | -0.9 |
+| phase-0 @ba36000 | 19.8B | 45.0 | -1.9 | +1.0 |
+| phase-0 @ba222000 | 122B | 46.7 | -0.3 | +2.7 |
+| **phase-1 @ba5000** | **+2.7B @8192** | **47.0** | **+0.0** | **+3.0** |
+
+**Context extension is additive, not destructive.** This was the key risk: base's phase-1 damaged
+retrieval because dense packing let tokens attend across document boundaries (0.165 -> 0.142).
+Large's `sequence_packing: true` (per-document `cu_seqlens`) holds — phase-1 *improved* MLM, and
+notably lifted **scidocs 48.9 -> 49.6**, which had been the entire remaining deficit vs NeoDictaBERT.
+
+At ~1.0 point SE, +0.0 is parity rather than a lead. Phase-1 was only ~13% through its 40B at this
+checkpoint, and the 15B anneal follows; for base, phases 1+2 together added +2.3 on this metric.
+
+**Unchanged caveat:** this is MLM. Base was *already* at MLM parity with NeoDictaBERT while scoring
+0.185 vs their 0.332 on BeIR. MLM does not predict retrieval — no BeIR eval of large exists, and it
+requires the finished model plus dual-encoder SFT in the sibling repo.
+
 ### ba36000 — the decision gate: **PASS** (table above)
 
 | model | arguana | fiqa | nfcorpus | scidocs | scifact | **MEAN** |
