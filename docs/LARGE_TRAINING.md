@@ -307,6 +307,21 @@ Two things to remember:
 - **This path is unvalidated until a phase actually hits a wall.** Phase-0's remaining 3.6B fits in
   one block, so the first real test is phase-1's first wall. Verify it fires; do not assume.
 
+
+### Requeue rollback costs real compute
+
+`save_interval: 100ba` in the ctx-ext phases, and at 8192 a batch is ~4.73M tokens — so checkpoints
+are ~473M tokens apart and every requeue rewinds to the last one. With 4h blocks at ~155K tok/s
+(~2.2B tokens/block) that is up to ~21% of a block lost, ~10% on average; across phase-1's ~14
+requeues, roughly **3B tokens of redundant compute**.
+
+Halving `save_interval` would halve the waste but doubles checkpoint I/O at **6.0 GB per write**.
+Not obviously worth it — but worth measuring rather than assuming if a phase ever requeues heavily.
+
+*Monitoring note:* a rollback can make a coarse progress bucket appear to move backwards. That is
+the rollback, not a training fault — verify against the actual token count in the log before
+treating it as a regression.
+
 ### What still cannot be automated
 - **Contention.** A 4-GPU job cannot run on the 1-GPU Goldberg lane, and slurm here rejects a
   flexible `--gpus=1-4` request ("Requested node configuration is not available"). Multi-partition
