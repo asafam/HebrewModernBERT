@@ -48,6 +48,14 @@ case "$PHASE" in
   2) RUN=modern-bert-large-phase-2-contextextension; YML=flex-bert-rope-phase-2-contextextension.yaml; LEN=8192 ;;
   *) echo "ERROR: PHASE must be 0, 1 or 2"; exit 1 ;;
 esac
+# BA=LATEST resolves the latest-rank0.pt symlink -- needed when chaining this gate with
+# --dependency=afterok on a training job, because the final batch number is not known at submit time.
+if [ "$BA" = "LATEST" ]; then
+    LINK="checkpoints/large/${RUN}/ckpt/latest-rank0.pt"
+    [ -L "$LINK" ] || { echo "ERROR: $LINK is not a symlink"; ls -l "checkpoints/large/${RUN}/ckpt/" | tail -5; exit 1; }
+    BA=$(readlink "$LINK" | grep -oE "ba[0-9]+" | tr -d "ba")
+    echo "BA=LATEST resolved to ba${BA}"
+fi
 CKPT="checkpoints/large/${RUN}/ckpt/ep0-ba${BA}-rank0.pt"
 NAME="HebrewModernBERT-large-p${PHASE}-ba${BA}"
 [ -f "$CKPT" ] || { echo "ERROR: $CKPT not found"; ls -1 checkpoints/large/modern-bert-large-phase-0-pretrain/ckpt/; exit 1; }

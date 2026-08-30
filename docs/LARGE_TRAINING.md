@@ -353,3 +353,41 @@ time and read as wall-clock; the honest number at a 20% duty cycle was ~2 weeks.
 
 **Release policy:** weights + tokenizer + code + recipe are public; the **MAFAT training corpus is
 private and must never be published.**
+
+## 9. BeIR retrieval evaluation for large — runbook (NOT yet run)
+
+This is the one axis with **no data for large**, and the one the project is ultimately judged on.
+It cannot run from this repo: it needs dual-encoder SFT in `../hebrew_text_retrieval`, then BeIR
+eval. Both use `p_b200_goldberg` (1 GPU, 4h) — a separate QOS pool from `p_b200_nlp`, so it will not
+compete with training.
+
+**The trap: use plain positives, not hard negatives.** Several scripts in the sibling repo
+(including `train_dual_encoder_beir_hn_hmb_final.sh` and `..._generic.sh`) pass
+`--dataset_name beir_hebrew_hn`. The **locked protocol since 2026-07-22 is
+`--dataset_name beir_hebrew`** (plain positives), because hard negatives *regressed* both HMB and
+NeoDictaBERT. Using an `_hn` script would produce a number that is not comparable to the baseline
+table.
+
+Locked recipe verbatim: plain positives, `lr 2e-5`, `bs 32x4`, cosine, `warmup 0.05`, `10 epochs`,
+`max_len 512`, `--pooling cls`. Template: `train_eval_hmb_retrain_final_meanpool.sh` (a combined
+train+eval script; revert its one deviation, `--pooling mean`, back to `cls`).
+
+Point `MODEL` at the exported large final, e.g. `outputs/hf/HebrewModernBERT-large-p2-ba<N>`, with a
+fresh `OUTPUT_DIR`.
+
+**Baseline table to compare against** (avg NDCG@10, all through this identical pipeline):
+
+| | avg NDCG@10 |
+|---|---|
+| mE5-large | 0.358 |
+| NeoDictaBERT | 0.332 |
+| mE5-base | 0.305 |
+| **target** | **0.300** |
+| HMB base retrain-final | 0.185 |
+| HMB base shipped | 0.144 |
+| random-init control | 0.084 |
+
+**Expectation, stated in advance:** base was *already* at MLM parity with NeoDictaBERT while scoring
+0.185 vs their 0.332. The gap is representation transfer, not backbone quality — so **large's MLM
+parity does not predict a retrieval gain**, and a large jump here would be surprising rather than
+expected. Run it to find out, not to confirm.
