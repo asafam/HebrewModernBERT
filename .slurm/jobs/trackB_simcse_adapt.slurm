@@ -56,7 +56,11 @@ ADAPT_DS="${ADAPT_DS:-hebrew_simcse}"
 TAU="${TAU:-0.05}"            # InfoNCE temperature; lower is sharper
 TAG="${TAG:-${ADAPT_DS%%_*}-$MODE-$(echo $SRC | sed 's/HebrewModernBERT-large-//')-bs${BS}-len${ADAPT_LEN:-256}-tau${TAU}}"
 
-PAIRS=$HMB/data/simcse/hebrew_${MODE}_${N}.jsonl   # mode-specific: crop pairs must not reuse dropout pairs
+# PAIRS may be overridden to point at a pre-built pair file (e.g. the mined asymmetric
+# title/headline <-> body pairs from scripts/mine_hebrew_weak_pairs.py). Otherwise it is derived
+# from MODE and N and the sampler builds it. Mode-specific name so crop pairs cannot silently
+# reuse the dropout file.
+PAIRS="${PAIRS:-$HMB/data/simcse/hebrew_${MODE}_${N}.jsonl}"
 VARIANT=$HMB/outputs/hf/${SRC}-dropout
 
 # ---- step 1: sample SimCSE pairs (CPU) -------------------------------------------------------
