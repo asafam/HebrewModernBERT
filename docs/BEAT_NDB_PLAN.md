@@ -128,3 +128,72 @@ anyone*, so NDB's 0.4461 is a zero-shot score. If we add arguana training data, 
 comparison requires re-running NDB with the same data — otherwise "we beat NDB" measures our better
 training set, not our better model. Both are legitimate goals ("best Hebrew retriever" vs "best
 Hebrew backbone") but they are different claims and should not be conflated.
+
+---
+
+# RESULT: contrastive adaptation works. 0.187 -> 0.295 (+58%), 89% of NeoDictaBERT
+
+Stage 2 (Track B) ran 2026-10-13, job 34976281. **~1M SimCSE pairs, 1 epoch, 3 hours of 1 GPU.**
+
+| run | arguana | fiqa | nfcorpus | scidocs | scifact | **ALL 5** | ex-arguana |
+|---|---|---|---|---|---|---|---|
+| baseline (cls, phase-2) | 0.0146 | 0.1637 | 0.3144 | 0.0628 | 0.3180 | 0.1747 | 0.2147 |
+| A3 (mean, phase-2) | 0.0637 | 0.1661 | 0.2939 | 0.0678 | 0.3415 | 0.1866 | 0.2173 |
+| S0a (mean, **phase-0**) | 0.0913 | 0.1569 | 0.2752 | 0.0693 | 0.3047 | 0.1795 | 0.2015 |
+| **B1 (SimCSE adapt)** | **0.4297** | **0.2408** | **0.3260** | **0.0787** | **0.4013** | **0.2953** | **0.2617** |
+| NeoDictaBERT | 0.4461 | 0.2896 | 0.3403 | 0.0908 | 0.4831 | 0.3300 | 0.3009 |
+
+**Every single dataset improved.** +575% arguana, +45% fiqa, +18% scifact, +16% scidocs, +11%
+nfcorpus. We went from **57% of NDB to 89%** (87% excluding arguana).
+
+### The predicted mechanism is confirmed, not just the outcome
+
+The diagnosis was that first-stage recall was broken because the embedding space was collapsed.
+Both diagnostics moved to NDB's level:
+
+| | before (A3) | **after (B1)** | NeoDictaBERT |
+|---|---|---|---|
+| arguana recall@100 | 0.296 | **0.946** | 0.974 |
+| arguana self-retrieval /1401 | 845 | **1293** | 1294 |
+
+Self-retrieval going 845 -> 1293 against NDB's 1294 is the cleanest possible confirmation: the
+space now behaves like theirs on the easiest retrieval task there is.
+
+**This cannot be training-data leakage.** ArguAna has **zero** training pairs, and it is the dataset
+that improved most (6.7x). Leakage cannot produce that; fixing geometry predicts exactly it.
+
+### Stage 0a: the anneal-damage hypothesis is REFUTED
+
+SFT from the pre-anneal phase-0 checkpoint scored **0.1795 vs phase-2's 0.1866** — slightly worse
+overall and worse ex-arguana (0.2015 vs 0.2173), though better on arguana alone (0.0913 vs 0.0637).
+So phase-2's anneal did **not** damage the space in a way that costs retrieval, and contrastive
+adaptation should keep starting from **phase-2**, which is what B1 did. The earlier
+query/doc-alignment flip (+0.914 -> -0.269) was real but is not what was costing us points.
+
+### The remaining gap is now the TRAINED datasets
+
+| dataset | B1 | NDB | gap | share of remaining gap |
+|---|---|---|---|---|
+| **scifact** | 0.4013 | 0.4831 | 0.0818 | **47%** |
+| **fiqa** | 0.2408 | 0.2896 | 0.0488 | **28%** |
+| arguana | 0.4297 | 0.4461 | 0.0164 | 9% |
+| nfcorpus | 0.3260 | 0.3403 | 0.0143 | 8% |
+| scidocs | 0.0787 | 0.0908 | 0.0121 | 7% |
+
+**scifact + fiqa are 76% of what is left, and both have training pairs** — so the binding
+constraint has moved from geometry back to the SFT recipe. That is precisely where Track A's arms
+already showed signal: A1 (negatives 32->256) gave scifact +16%, A2 (rebalanced mix) gave fiqa +25%.
+Those were measured on the un-adapted model and should compose with B1.
+
+### Next, in order
+
+1. **B1 + Track A combined** — contrastive adaptation, then SFT with 256+ negatives and the
+   rebalanced mix, two seeds. Cheap, and it targets the 76%.
+2. **Scale the adaptation** — 1M pairs / 1 epoch / 3h was the *smallest* useful experiment. More
+   pairs and more epochs is the obvious next lever, now justified by measured signal.
+3. **GradCache + gradient-checkpointing support** on `InfoNCEDualEncoder` to push the negative pool
+   past 256 (it currently refuses checkpointing; see the Track B job comments).
+4. **All-global attention** — Stage 0b still pending.
+5. Full-BeIR translation for arguana/scidocs training pairs.
+
+**Beating NDB now needs +12% from 0.2953, against the +58% just achieved from one 3-hour run.**
