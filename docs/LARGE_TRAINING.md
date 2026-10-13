@@ -391,3 +391,64 @@ fresh `OUTPUT_DIR`.
 0.185 vs their 0.332. The gap is representation transfer, not backbone quality — so **large's MLM
 parity does not predict a retrieval gain**, and a large jump here would be surprising rather than
 expected. Run it to find out, not to confirm.
+
+## 10. Retrieval sweep results (2026-10, jobs 32961723/4/5)
+
+All three arms finished. Each varies ONE knob off the locked protocol (plain positives, lr 2e-5,
+cosine, warmup 0.05, 10 epochs, max_len 512, seed 17), so every delta is attributable.
+
+| | arguana | fiqa | nfcorpus | scidocs | scifact | **AVG** |
+|---|---|---|---|---|---|---|
+| baseline (neg 32, cls, 88% nfcorpus) | 0.0146 | 0.1637 | **0.3144** | 0.0628 | 0.3180 | 0.1747 |
+| **A1** negatives 32 -> 256 | 0.0151 | 0.1778 | 0.3057 | 0.0622 | **0.3694** | **0.1860** |
+| **A2** nfcorpus capped to 15k | 0.0617 | **0.2048** | 0.2292 | **0.0701** | 0.3330 | 0.1798 |
+| **A3** mean pooling | **0.0637** | 0.1661 | 0.2939 | 0.0678 | 0.3415 | **0.1866** |
+| *best-of-breed (if combinable)* | 0.0637 | 0.2048 | 0.3144 | 0.0701 | 0.3694 | *0.2045* |
+| NeoDictaBERT | 0.4461 | 0.2896 | 0.3403 | 0.0908 | 0.4831 | 0.3300 |
+
+**The three interventions are largely ORTHOGONAL — each wins a different dataset.** No single arm
+beats baseline by much (+2.9% to +6.8%), but their per-dataset maxima sum to ~0.2045 (+17%), so the
+obvious next run is a COMBINED arm rather than any one of these.
+
+**A1 (negatives) works where it should and nowhere else.** scifact +16%, fiqa +9% — the two datasets
+the August analysis named as the ones that must move to reach 0.300. It does nothing for arguana
+(0.0146 -> 0.0151), exactly as predicted: more in-batch negatives only sharpen datasets that have
+training pairs, and arguana has none.
+
+**A2 (rebalance) is a trade, not a free win.** Capping nfcorpus 110,575 -> 15,000 lifted every other
+dataset (arguana +322%, fiqa +25%, scidocs +12%) and cost nfcorpus 27% (0.3144 -> 0.2292). Excluding
+nfcorpus it is the best arm (0.1674 vs baseline 0.1398, +20%). Confirms the monoculture hypothesis:
+the model was trading general retrieval for nfcorpus-specific fit.
+
+**A3 (mean pooling) fixes arguana and is the best single arm.** 0.0146 -> 0.0637, 4.4x.
+
+### The CLS space is measurably degenerate — `num_self_excluded` proves it
+
+ArguAna queries are themselves documents in the corpus, so a model with usable embeddings retrieves
+the query's own identical text as a top hit; the eval then excludes it (`exclude_self: auto`) and
+reports the count. Finding your own exact text is the easiest possible retrieval task.
+
+| arm | pooling | self-retrieved / 1401 |
+|---|---|---|
+| baseline | cls | 98 (**7%**) |
+| A1 | cls | 98 (**7%**) |
+| A2 | cls | 348 (25%) |
+| A3 | **mean** | 845 (**60%**) |
+
+**With CLS the model fails to match a document to itself 93% of the time.** That is an independent
+confirmation of the anisotropy 0.9997 measurement in `docs/RETRIEVAL_EVAL.md` — the CLS vector is
+near-degenerate, and the locked protocol trains on exactly that vector. Mean pooling recovers it
+to 60%. This also explains why arguana specifically collapsed: it is the only dataset with no
+training pairs, so it cannot learn its way around a bad starting geometry.
+
+### Next run: combine, do not pick
+
+`BS=256 ACCUM=1 MAXPER=15000 POOLING=mean` — A1+A2+A3 together. The arms target different failure
+modes (contrastive difficulty / data balance / embedding geometry) and their wins are on disjoint
+datasets, so they should compose. Keep nfcorpus uncapped in a second variant, since baseline's
+uncapped nfcorpus (0.3144) still beats every capped arm.
+
+**Even best-of-breed (~0.2045) is far from NeoDictaBERT (0.330) and the 0.300 target.** These are
+real gains from config changes alone, but they do not close the gap; the remaining levers are the
+full-BeIR translation (gives arguana/scidocs training pairs for the first time) and a projection
+head / objective change.
