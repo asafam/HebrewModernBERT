@@ -79,6 +79,16 @@ json.dump(d, open("$VARIANT/config.json", "w"), indent=2)
 print("  dropout -> 0.1 on attention/mlp/embedding (was 0.0; SimCSE needs it for the second view)")
 PY
 
+#
+# OOM FIX (job 34974417 died here at bs 256 / len 512). SimCSE pairs are SYMMETRIC: both sides are
+# the SAME full-length document, whereas the BeIR SFT pairs a SHORT query with one long document.
+# So at equal batch size this step costs roughly twice the activation memory, and bs 256 that A1
+# ran fine for BeIR does not fit here. The fix keeps bs 256 -- the negative pool is the whole point
+# of the run -- and buys the memory back from length and recomputation instead:
+#   ADAPT_LEN 256 (our --min-chars 200 filter is ~60-70 Hebrew tokens, so most docs fit) and
+#   --gradient_checkpointing. Adaptation at 256 then SFT at 512 is a mild length shift, and
+#   ModernBERT handles variable length natively via RoPE.
+# If it still OOMs, halve BS before lowering ADAPT_LEN further.
 # ---- step 3: contrastive adaptation ----------------------------------------------------------
 cd $SIB
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
@@ -91,7 +101,8 @@ python src/model/dual_encoder/train_dual_encoder.py \
     --query_model_name "$VARIANT" \
     --doc_model_name "$VARIANT" \
     --query_field query --document_field document \
-    --max_length 512 \
+    --max_length "${ADAPT_LEN:-256}" \
+    --gradient_checkpointing \
     --num_train_epochs "$EPOCHS" \
     --per_device_train_batch_size "$BS" \
     --gradient_accumulation_steps 1 \
