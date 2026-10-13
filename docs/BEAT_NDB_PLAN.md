@@ -189,8 +189,20 @@ Those were measured on the un-adapted model and should compose with B1.
 
 1. **B1 + Track A combined** — contrastive adaptation, then SFT with 256+ negatives and the
    rebalanced mix, two seeds. Cheap, and it targets the 76%.
-2. **Scale the adaptation** — 1M pairs / 1 epoch / 3h was the *smallest* useful experiment. More
-   pairs and more epochs is the obvious next lever, now justified by measured signal.
+2. **Do NOT just scale the adaptation — the task SATURATES.** The InfoNCE loss went 5.17 (chance
+   for 256 candidates is ln(256) = 5.545) to **0.0021 by epoch 0.05**, i.e. within ~200 of the
+   3,906 steps, then sat at ~0.0001 for the remaining 95% of the run. So ~10 minutes of the 3
+   hours did the work and more pairs or epochs adds no gradient signal. **The next lever is a
+   HARDER task, not a longer one:**
+   - **more negatives** (GradCache to 4k-32k) — the discrimination is currently 1-of-256;
+   - **harder positives** — dropout-only views are nearly identical text, so the model can win by
+     surface matching. Document crops (two different spans of one document), span deletion or
+     back-translation force actual semantic alignment;
+   - **lower temperature** to sharpen the objective.
+
+   That even a saturating, trivially-easy objective bought +58% says the collapse was the whole
+   problem and very little uniformity pressure was needed to break it. Getting the *rest* of the
+   way needs the task to stay hard enough to keep producing gradient.
 3. **GradCache + gradient-checkpointing support** on `InfoNCEDualEncoder` to push the negative pool
    past 256 (it currently refuses checkpointing; see the Track B job comments).
 4. **All-global attention** — Stage 0b still pending.
