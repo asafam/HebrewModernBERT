@@ -53,6 +53,11 @@ MODE="${MODE:-dropout}"       # dropout | crop  (crop = two non-overlapping span
 # Self-supervised augmentation and real query-doc pairs teach different things, so this is a
 # genuinely separate direction rather than another knob on the same objective.
 ADAPT_DS="${ADAPT_DS:-hebrew_simcse}"
+# Field names for the ADAPTATION step only; step 4 (BeIR SFT) is always query/document.
+# heq_translated stores question_hebrew / context_hebrew, so the defaults fail there with
+# KeyError: 'query' (job 35091079 died on exactly that in 70 seconds).
+QF="${QF:-query}"
+DF="${DF:-document}"
 TAU="${TAU:-0.05}"            # InfoNCE temperature; lower is sharper
 TAG="${TAG:-${ADAPT_DS%%_*}-$MODE-$(echo $SRC | sed 's/HebrewModernBERT-large-//')-bs${BS}-len${ADAPT_LEN:-256}-tau${TAU}}"
 
@@ -123,7 +128,7 @@ python src/model/dual_encoder/train_dual_encoder.py \
     --pairs_file "$PAIRS" \
     --query_model_name "$VARIANT" \
     --doc_model_name "$VARIANT" \
-    --query_field query --document_field document \
+    --query_field "$QF" --document_field "$DF" \
     --max_length "${ADAPT_LEN:-256}" \
     --num_train_epochs "$EPOCHS" \
     --per_device_train_batch_size "$BS" \
