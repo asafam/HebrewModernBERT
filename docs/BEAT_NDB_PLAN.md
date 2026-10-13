@@ -244,3 +244,68 @@ the gap) and fiqa (28%) are both TRAINED datasets, so the levers are the SFT rec
 gave scifact +16%, A2's rebalance gave fiqa +25%) and a HARDER contrastive objective — more
 negatives via GradCache, crop-based positives instead of dropout, lower temperature. Not more of
 the same.
+
+---
+
+# Chasing mE5-large (0.382), not just NDB (0.330)
+
+After Track B took us to 0.2953, mE5 is a credible target. The case, with the measurements:
+
+## What we already hold over mE5
+
+**1. Tokenizer — measured on 80,456 words of our own Hebrew corpus:**
+
+| tokenizer | tok/word |
+|---|---|
+| **HMB (BPE 150K)** | **1.256** |
+| NeoDictaBERT (WordPiece 128K) | 1.248 |
+| mE5-large (XLM-R 250K) | **1.889** |
+
+mE5 needs **50% more tokens** for the same Hebrew. At `max_length 512` it fits ~271 Hebrew words
+against our ~408 — we see half again as much document per query, and its Hebrew subword coverage is
+correspondingly coarser.
+
+**2. MLM: 49.0 vs NDB's 46.9**, measured. mE5 is multilingual, so Hebrew is one slice of its
+pretraining; ours is 185B Hebrew tokens.
+
+**3. Hebrew-specialised throughout** — tokenizer, corpus, and now embedding geometry.
+
+## mE5's single advantage, and why it is beatable
+
+mE5's recipe is **weakly-supervised contrastive pretraining on ~1B mined text pairs**, then
+supervised fine-tuning. We have done **1M self-supervised pairs, once, for three hours**.
+
+But mE5 spread that ~1B across ~100 languages. Hebrew's share is plausibly ~1%, so **~10M Hebrew
+pairs**. Ten to fifty million *Hebrew* pairs is therefore comparable to or better than what mE5
+ever saw for Hebrew — and that is reachable from the corpus we already own.
+
+## Where 10-50M Hebrew weak pairs come from (all already on disk)
+
+| source | in-corpus tokens | pair construction |
+|---|---|---|
+| wikipedia | 1.1B | title<->body, section<->section, anchor<->target article |
+| news (YisraelHayom, Geektime) | 0.85B | headline<->article |
+| HeQ | — | question<->context (**F1 is testing this now**) |
+| HebNLI | 6.6B | premise<->hypothesis (flattened in the MDS; needs the raw jsonl) |
+| hec4_clean + fineweb2 | 64B | adjacent-paragraph and crop pairs — effectively unlimited |
+
+The crop sampler already generates unlimited pairs from 39B unique tokens, so **pair volume is not
+the constraint** — pair *quality and variety* is.
+
+## Cost
+
+Measured rate: 1M pairs at bs 256 took ~3h on one GPU. **10M pairs ~= 15-30 GPU-hours**, comparable
+to a single training phase and far below the 128h the MLM pretraining cost. Affordable.
+
+## The honest blocker
+
+mE5's *supervised* stage uses large labelled retrieval sets (MS MARCO, NQ, ...). We have only BeIR
+Hebrew: **125,625 pairs across 3 datasets**, and 88% of it is one dataset. That is the thinnest
+part of our pipeline and is exactly what the full-BeIR translation would widen.
+
+## Sequencing
+
+**Do not scale B1 blindly.** The 7 arms in flight are determining *which* contrastive configuration
+is worth scaling (harder positives? more negatives? sharper temperature? real pairs vs
+self-supervised views?). Scale the winner, after it replicates at a second seed. Scaling the wrong
+configuration 10x would spend 30 GPU-hours confirming a noise artifact.
