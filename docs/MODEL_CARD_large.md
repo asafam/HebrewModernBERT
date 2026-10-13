@@ -35,14 +35,32 @@ Wins 4 of 5 datasets. All models scored in the same run on identical words and m
 words dropped; our 1.38 tokens/word vs NeoDictaBERT's 1.30 makes exact match marginally harder
 for us, so the comparison is conservative in their favour.
 
-**Retrieval — markedly weaker than MLM.** avg NDCG@10 on BeIR Hebrew after identical
-dual-encoder SFT: **0.186** for large, vs NeoDictaBERT's **0.330** and mE5-large's 0.382.
+**Retrieval — the model's main weakness.** avg NDCG@10 on BeIR Hebrew after dual-encoder SFT
+(**use mean pooling**, see Usage):
 
-This gap is the model's main limitation and is **not** a backbone-quality problem: large *beats*
-NeoDictaBERT on language modelling while scoring 56% of its retrieval. The bottleneck is
-representation transfer — how MLM representations become a single retrievable vector. One
-dataset (arguana, 0.015) sits at the random-init floor and is under investigation; excluding it,
-large scores 0.229 vs base's 0.152.
+| | arguana | fiqa | nfcorpus | scidocs | scifact | all 5 | **excl. arguana** |
+|---|---|---|---|---|---|---|---|
+| **HebrewModernBERT-large** | 0.064 | 0.166 | 0.294 | 0.068 | 0.342 | **0.187** | **0.217** |
+| HebrewModernBERT-base | 0.223 | 0.117 | 0.265 | 0.041 | 0.179 | 0.165 | 0.150 |
+| NeoDictaBERT | 0.446 | 0.290 | 0.340 | 0.091 | 0.483 | 0.330 | 0.301 |
+| mE5-large | 0.559 | 0.335 | 0.288 | 0.141 | 0.589 | 0.382 | 0.338 |
+
+Large improves on base by **+45% on the four non-arguana datasets** (0.217 vs 0.150) but only +13%
+overall, because **arguana collapses**: 0.064 against base's 0.223.
+
+**This is a representation problem, and it is the honest limitation of this release.** The diagnostic
+number is recall@100 on arguana: **NeoDictaBERT 0.974, this model 0.296** — NDB has the correct
+document in its top 100 for 97% of queries, we do for 30%. The right document is not in our
+candidate set at all, so it is first-stage retrieval that fails, not ranking. Supporting
+measurements: CLS-space anisotropy **0.9997** vs NDB's 0.833, and with CLS pooling the model fails
+to retrieve a document's own identical text 93% of the time (mean pooling: 40%).
+
+Root cause, as best we understand it: the model is trained **only** on masked language modelling,
+which produces a token predictor rather than a metric space. More MLM pretraining made this axis
+*worse* — large beats base by 5.0 on MLM and is 3.5x worse on arguana. Models that do well at
+retrieval are pretrained for it (mE5) or use full global attention (NDB uses 28/28 global; this
+model uses 10/28 with a 128-token sliding window). Contrastive pretraining is the planned fix; see
+`recipe/docs/BEAT_NDB_PLAN.md`.
 
 **Use this model for** MLM, classification, token classification, NER, and long-context Hebrew
 understanding. **For retrieval**, NeoDictaBERT or mE5 currently perform better out of the box.
@@ -54,6 +72,9 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 tok = AutoTokenizer.from_pretrained("<org>/HebrewModernBERT-large", use_fast=True)
 model = AutoModelForMaskedLM.from_pretrained("<org>/HebrewModernBERT-large")
 ```
+
+**If you use this for embeddings, use mean pooling, not CLS.** The CLS vector is near-degenerate
+(anisotropy 0.9997); mean pooling measured 4.4x better on zero-shot retrieval.
 
 `use_fast=True` is required — the fast `tokenizer.json` is the source of truth. Special ids:
 `[PAD]=0 [UNK]=1 [CLS]=2 [SEP]=3 [MASK]=4`.
@@ -87,7 +108,8 @@ found along the way: `recipe/docs/LARGE_TRAINING.md`.
 ## Limitations
 
 - Retrieval is well below NeoDictaBERT and mE5 (see above).
-- arguana retrieval is at the random-init floor — a specific, unexplained failure.
+- arguana retrieval (0.064) is far below even our own base model (0.223) — see above.
+- recall@100 is 0.296 where NeoDictaBERT reaches 0.974: first-stage retrieval, not ranking, is the failure.
 - No Hebrew NLU/GLUE benchmark has been run; MLM whole-word recovery is the only
   apples-to-apples evaluation performed.
 - Trained and evaluated on Hebrew only.
