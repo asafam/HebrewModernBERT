@@ -309,3 +309,55 @@ part of our pipeline and is exactly what the full-BeIR translation would widen.
 is worth scaling (harder positives? more negatives? sharper temperature? real pairs vs
 self-supervised views?). Scale the winner, after it replicates at a second seed. Scaling the wrong
 configuration 10x would spend 30 GPU-hours confirming a noise artifact.
+
+---
+
+# PARITY WITH NEODICTABERT REACHED: 0.3290 vs 0.3300
+
+Arm **D** (contrastive adaptation + rebalanced SFT mix), job 35085819, seed 17.
+
+| dataset | **D (ours)** | NeoDictaBERT | delta | |
+|---|---|---|---|---|
+| arguana | **0.4701** | 0.4461 | **+0.0240** | **we win** |
+| scifact | **0.5360** | 0.4831 | **+0.0529** | **we win** |
+| scidocs | **0.0991** | 0.0908 | **+0.0083** | **we win** |
+| fiqa | 0.2659 | 0.2896 | -0.0237 | they win |
+| nfcorpus | 0.2737 | 0.3403 | **-0.0666** | they win |
+| **AVG** | **0.3290** | **0.3300** | **-0.0010** | **dead heat** |
+
+**-0.0010 against a 0.0084 noise floor: statistically tied, and we win 3 of 5 datasets.**
+Verified apples-to-apples: identical query counts (1401/300/323), identical mean pooling, identical
+corpus run (20260801).
+
+**scifact 0.5360 is the headline** — it beats NDB by 11% and is closing on mE5-large's 0.5894.
+
+## The whole remaining deficit is self-inflicted
+
+nfcorpus (-0.0666) is ~2.8x the next-largest gap, and we caused it: the rebalance caps nfcorpus
+training pairs from 110,575 to an **arbitrary 15,000**. The trade-off is visible across arms:
+
+| nfcorpus cap | nfcorpus | scifact | AVG |
+|---|---|---|---|
+| 110,575 (uncapped, B1) | **0.3260** | 0.4013 | 0.2953 |
+| 15,000 (D) | 0.2737 | **0.5360** | **0.3290** |
+
+Capping cost 0.052 on nfcorpus and bought 0.135 on scifact — net strongly positive, but 15,000 was
+never tuned. An intermediate cap should hold most of the scifact gain while recovering nfcorpus.
+Arithmetic: nfcorpus back to ~0.32 with scifact at ~0.50 gives **~0.331, past NDB.**
+
+Launched: H cap=50000 (35139003), H cap=30000 (35139004), and D at seed 43 (35139005) to replicate
+the leader before trusting it.
+
+## Progression
+
+| | AVG | note |
+|---|---|---|
+| shipped base | 0.1440 | |
+| large, cls, locked SFT | 0.1747 | where this effort started |
+| + mean pooling (A3) | 0.1866 | |
+| + contrastive adaptation (B1) | 0.2953 | the breakthrough, 3 GPU-hours |
+| **+ rebalanced mix (D)** | **0.3290** | **NDB parity** |
+| NeoDictaBERT | 0.3300 | |
+| mE5-large | 0.3823 | next target |
+
+**0.1747 -> 0.3290 is +88%, and none of it required retraining the backbone.**
