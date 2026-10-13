@@ -47,15 +47,24 @@ BS="${BS:-256}"
 EPOCHS="${EPOCHS:-1}"
 LR="${LR:-3e-5}"
 MODE="${MODE:-dropout}"       # dropout | crop  (crop = two non-overlapping spans, harder positive)
+# ADAPT_DS picks WHAT the adaptation stage trains on, a different axis from MODE:
+#   hebrew_simcse   self-supervised views of raw Hebrew text (no labels)
+#   heq_translated  REAL Hebrew question/context pairs -- weak supervision, mE5's recipe.
+# Self-supervised augmentation and real query-doc pairs teach different things, so this is a
+# genuinely separate direction rather than another knob on the same objective.
+ADAPT_DS="${ADAPT_DS:-hebrew_simcse}"
 TAU="${TAU:-0.05}"            # InfoNCE temperature; lower is sharper
-TAG="${TAG:-$MODE-$(echo $SRC | sed 's/HebrewModernBERT-large-//')-bs${BS}-len${ADAPT_LEN:-256}-tau${TAU}}"
+TAG="${TAG:-${ADAPT_DS%%_*}-$MODE-$(echo $SRC | sed 's/HebrewModernBERT-large-//')-bs${BS}-len${ADAPT_LEN:-256}-tau${TAU}}"
 
 PAIRS=$HMB/data/simcse/hebrew_${MODE}_${N}.jsonl   # mode-specific: crop pairs must not reuse dropout pairs
 VARIANT=$HMB/outputs/hf/${SRC}-dropout
 
 # ---- step 1: sample SimCSE pairs (CPU) -------------------------------------------------------
 cd $HMB
-if [ -s "$PAIRS" ]; then
+if [ "$ADAPT_DS" != "hebrew_simcse" ]; then
+    echo "=== step 1/4: ADAPT_DS=$ADAPT_DS loads its own data; skipping the pair sampler ==="
+    PAIRS=""
+elif [ -s "$PAIRS" ]; then
     echo "=== step 1/4: pairs already exist ($(wc -l < "$PAIRS") lines), skipping sampler ==="
 else
     echo "=== step 1/4: sampling $N $MODE pairs from the Hebrew corpus ==="
@@ -106,7 +115,7 @@ source "$(pwd)/scripts/model/eval/corpus_paths.sh"
 ADAPT=outputs/models/dual_encoder/mean_pooling/hebrew_simcse/$TAG
 echo "=== step 3/4: contrastive adaptation (mode=$MODE, $N pairs, bs $BS, len ${ADAPT_LEN:-256}, tau $TAU, $EPOCHS ep, lr $LR) ==="
 python src/model/dual_encoder/train_dual_encoder.py \
-    --dataset_name hebrew_simcse \
+    --dataset_name "$ADAPT_DS" \
     --pairs_file "$PAIRS" \
     --query_model_name "$VARIANT" \
     --doc_model_name "$VARIANT" \
