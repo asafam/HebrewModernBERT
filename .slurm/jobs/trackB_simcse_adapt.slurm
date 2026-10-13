@@ -46,9 +46,11 @@ N="${N:-1000000}"
 BS="${BS:-256}"
 EPOCHS="${EPOCHS:-1}"
 LR="${LR:-3e-5}"
-TAG="${TAG:-simcse-$(echo $SRC | sed 's/HebrewModernBERT-large-//')}"
+MODE="${MODE:-dropout}"       # dropout | crop  (crop = two non-overlapping spans, harder positive)
+TAU="${TAU:-0.05}"            # InfoNCE temperature; lower is sharper
+TAG="${TAG:-$MODE-$(echo $SRC | sed 's/HebrewModernBERT-large-//')-bs${BS}-len${ADAPT_LEN:-256}-tau${TAU}}"
 
-PAIRS=$HMB/data/simcse/hebrew_simcse_${N}.jsonl
+PAIRS=$HMB/data/simcse/hebrew_${MODE}_${N}.jsonl   # mode-specific: crop pairs must not reuse dropout pairs
 VARIANT=$HMB/outputs/hf/${SRC}-dropout
 
 # ---- step 1: sample SimCSE pairs (CPU) -------------------------------------------------------
@@ -56,8 +58,8 @@ cd $HMB
 if [ -s "$PAIRS" ]; then
     echo "=== step 1/4: pairs already exist ($(wc -l < "$PAIRS") lines), skipping sampler ==="
 else
-    echo "=== step 1/4: sampling $N SimCSE pairs from the Hebrew corpus ==="
-    python scripts/sample_hebrew_simcse_pairs.py --n "$N" --out "$PAIRS"
+    echo "=== step 1/4: sampling $N $MODE pairs from the Hebrew corpus ==="
+    python scripts/sample_hebrew_simcse_pairs.py --mode "$MODE" --n "$N" --out "$PAIRS"
 fi
 
 # ---- step 2: model variant WITH DROPOUT ------------------------------------------------------
@@ -102,7 +104,7 @@ cd $SIB
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 source "$(pwd)/scripts/model/eval/corpus_paths.sh"
 ADAPT=outputs/models/dual_encoder/mean_pooling/hebrew_simcse/$TAG
-echo "=== step 3/4: contrastive adaptation ($N pairs, bs $BS, $EPOCHS ep, lr $LR) ==="
+echo "=== step 3/4: contrastive adaptation (mode=$MODE, $N pairs, bs $BS, len ${ADAPT_LEN:-256}, tau $TAU, $EPOCHS ep, lr $LR) ==="
 python src/model/dual_encoder/train_dual_encoder.py \
     --dataset_name hebrew_simcse \
     --pairs_file "$PAIRS" \
@@ -117,7 +119,7 @@ python src/model/dual_encoder/train_dual_encoder.py \
     --warmup_ratio 0.05 \
     --lr_scheduler_type cosine \
     --pooling mean \
-    --temperature 0.05 \
+    --temperature "$TAU" \
     --seed 17 \
     --bf16 \
     --eval_steps 500 --save_steps 1000 --save_total_limit 1 \
@@ -127,7 +129,7 @@ python src/model/dual_encoder/train_dual_encoder.py \
 # ---- step 4: retrieval SFT on the adapted weights, then eval ---------------------------------
 # init_from_checkpoint continues from a fine-tuned dual encoder rather than rebuilding fresh
 # encoders from a base model -- exactly the handoff we need here.
-LABEL=lg-B1-simcse-$TAG
+LABEL=lg-B-$TAG
 SFT=outputs/models/dual_encoder/mean_pooling/beir_hebrew/hebmodernbert/$LABEL
 echo "=== step 4/4: retrieval SFT from the adapted checkpoint, then BeIR eval ==="
 python src/model/dual_encoder/train_dual_encoder.py \

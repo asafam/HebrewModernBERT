@@ -58,6 +58,14 @@ def main():
                     help="skip very short docs: a 1-2 sentence positive teaches little")
     ap.add_argument("--max-chars", type=int, default=4000,
                     help="truncate; SFT and eval both run at max_length 512 tokens anyway")
+    ap.add_argument("--mode", choices=["dropout", "crop"], default="dropout",
+                    help="dropout: the SAME text both sides, so the two views differ only by "
+                         "dropout -- the model can win by surface matching, and the objective "
+                         "SATURATES (measured: InfoNCE loss 5.17 -> 0.0021 by epoch 0.05, i.e. in "
+                         "~200 of 3,906 steps). crop: two NON-OVERLAPPING spans of one document, "
+                         "which forces semantic alignment instead and keeps the task hard. 90% of "
+                         "sampled docs are >=500 chars, so crops are viable here. Crops are also "
+                         "shorter, which frees memory for a larger negative pool.")
     ap.add_argument("--seed", type=int, default=17)
     args = ap.parse_args()
 
@@ -94,8 +102,22 @@ def main():
                     continue
 
                 text = text[: args.max_chars]
-                # Same text both sides: dropout supplies the two views (see module docstring).
-                f.write(json.dumps({"query": text, "document": text}, ensure_ascii=False) + "\n")
+                if args.mode == "crop":
+                    # Two non-overlapping spans. Split near the middle (jittered so the model
+                    # cannot learn a fixed boundary), then take a window from each side.
+                    if len(text) < 2 * args.min_chars // 2:
+                        continue
+                    mid = len(text) // 2
+                    jit = random.randint(-len(text) // 10, len(text) // 10)
+                    split = max(args.min_chars // 2, min(len(text) - args.min_chars // 2, mid + jit))
+                    a, b = text[:split].strip(), text[split:].strip()
+                    if len(a) < 100 or len(b) < 100:
+                        continue
+                    rec = {"query": a, "document": b}
+                else:
+                    # Same text both sides: dropout supplies the two views.
+                    rec = {"query": text, "document": text}
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 counts[src] = counts.get(src, 0) + 1
                 kept += 1
                 if kept % 100_000 == 0:
