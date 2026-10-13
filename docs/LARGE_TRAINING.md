@@ -448,13 +448,21 @@ reports the count. Finding your own exact text is the easiest possible retrieval
 | A2 | cls | 348 (25%) |
 | A3 | **mean** | 845 (**60%**) |
 
-**With CLS the model fails to match a document to itself 93% of the time.** Caveats before leaning
-on this: baseline and A1 report the *identical* count (98), which for two differently-trained models
-suggests either hubness (the same ~100 hub docs fill top-100 for every query — which would
-strengthen the claim) or an eval artifact in how `exclude_self: auto` counts; and query/doc towers
-diverge during SFT, so low self-retrieval could be tower drift rather than anisotropy. Same
-practical conclusion either way (CLS is fragile under this SFT), different mechanism. Read as
-corroborating the anisotropy 0.9997 measurement in `docs/RETRIEVAL_EVAL.md` — the CLS vector is
+**With CLS the model fails to match a document to itself 93% of the time.**
+
+**Tower drift is REFUTED as the explanation (checked 2026-10-13).** The dual encoder builds two
+separate `AutoModel.from_pretrained()` towers that diverge during SFT, so identical text passing
+through different encoders was a plausible mechanism. But NeoDictaBERT runs through the *same
+untied pipeline* and self-retrieves **1294/1401 (92%)**. If drift were the cause, NDB would suffer
+it too. Our embedding space is the problem, not the harness.
+
+The decisive number is alongside it: **recall@100 — NDB 0.974, HMB-large 0.296.** NDB has the
+correct document in its top 100 for 97% of queries; we do for 30%. That is not a ranking failure,
+it is a representation failure — the right document is not in our candidate set at all.
+
+Remaining caveat: baseline and A1 report the *identical* count (98), which for two differently
+trained models suggests hubness or an artifact in how `exclude_self: auto` counts. Read the whole
+section as corroborating the anisotropy 0.9997 measurement in `docs/RETRIEVAL_EVAL.md` — the CLS vector is
 near-degenerate, and the locked protocol trains on exactly that vector. Mean pooling recovers it
 to 60%. This also explains why arguana specifically collapsed: it is the only dataset with no
 training pairs, so it cannot learn its way around a bad starting geometry.

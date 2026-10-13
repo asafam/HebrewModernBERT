@@ -109,6 +109,11 @@ cp -r yamls/main/base_hebrew yamls/main/base_hebrew_large "$STAGE/" 2>/dev/null 
 # PRIVACY GUARD. Refuse to upload if the bundle contains corpus text or a credential.
 # A config naming a file is fine; a file CONTAINING Hebrew prose is not.
 # ---------------------------------------------------------------------------------------------
+# Strip build junk before the audit: __pycache__/*.pyc are not source, carry no information a
+# reader needs, and look sloppy in a published repo.
+find "$STAGE" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+find "$STAGE" -name "*.pyc" -delete 2>/dev/null || true
+
 echo "=== privacy audit of the reproducibility bundle ==="
 BAD=0
 while IFS= read -r f; do

@@ -79,15 +79,26 @@ should go straight to Stage 2.
 ### Stage 2 — contrastive pretraining (the actual answer)
 Continue pretraining the existing large weights with a **contrastive objective alongside MLM**:
 
-- **Positives from unlabelled text, no annotation needed** — Contriever-style independent crops of
-  the same document (also: title/body pairs, which `hebrew_quality` has from Wikipedia and news).
+- **Positives from unlabelled text — but the corpus is SHORT-document, so pick the scheme first.**
+  `TRAINING.md` §3: median ~100 tokens, 92% under 1024. Two "independent crops" of a 100-token
+  document either overlap almost entirely (a trivial positive) or are a few tokens each. Options,
+  decide before writing the sampler: (a) filter `_source` to the long-doc sources (`yifat_long`
+  ~305 tok/doc, `books`, `wikipedia`) and crop those; (b) SimCSE dropout-positives — the same text
+  twice through different dropout masks, which needs no length at all; (c) title/body pairs from
+  Wikipedia and news. (b) is the cheapest to implement and is the standard unsupervised baseline.
 - **InfoNCE with a large negative pool** via GradCache (not the 32 we were using).
 - **Keep MLM as an auxiliary loss** so we do not destroy the 49.0 MLM win — multi-task, not replace.
 - **Mean pooling** during pretraining, matching downstream use.
 - **All-global attention** (`global_attn_every_n_layers: 1`) — only **+9%** at 1024 context.
 - **Start from phase-0 or phase-1, not phase-2** (pending Stage 0 item 1).
-- **1024 context, ~10-20B tokens.** At 1024 the attention cost is cheap; est. **~30-40 GPU-hours**,
-  comparable to phase-0's 29h.
+- **FIRST RUN IS SMALL, not 10-20B tokens.** Unsupervised SimCSE-scale adaptation (~1-5M pairs,
+  a few GPU-hours) is enough to tell us whether contrastive adaptation moves the metric at all.
+  Scale to 10-20B tokens (~30-40 GPU-hours) only if the small run shows signal. Measure first.
+- **MLM auxiliary loss: deferred for the first run.** The sibling repo's `InfoNCEDualEncoder` uses
+  `AutoModel`, so there is no MLM head and no aux loss. For a short run the forgetting is bounded
+  by step count, so the first experiment is **pure contrastive** — but re-run
+  `mlm_compare_vs_neodictabert.py` afterwards to measure what the 49.0 MLM win cost. Add the
+  multi-task loss only if the trade is bad and the retrieval gain is worth keeping.
 
 Why this targets the actual gap: contrastive losses have an explicit uniformity term, so they fix
 anisotropy *by construction* — which is the arguana failure, i.e. 61% of the distance to NDB.
