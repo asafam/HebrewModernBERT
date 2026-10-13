@@ -209,3 +209,38 @@ Those were measured on the un-adapted model and should compose with B1.
 5. Full-BeIR translation for arguana/scidocs training pairs.
 
 **Beating NDB now needs +12% from 0.2953, against the +58% just achieved from one 3-hour run.**
+
+## Stage 0b: all-global attention is NOT worth retraining for — hypothesis refuted
+
+Clean single-variable test on the existing weights (`global_attn_every_n_layers` 3 -> 1, i.e.
+10/28 global layers -> 28/28; same checkpoint, same mean pooling, same seed, locked otherwise):
+
+| dataset | 10/28 global | 28/28 global | delta |
+|---|---|---|---|
+| arguana | 0.0637 | 0.0682 | +0.0045 |
+| fiqa | 0.1661 | 0.1705 | +0.0044 |
+| nfcorpus | 0.2939 | 0.3040 | +0.0101 |
+| scifact | 0.3415 | 0.3338 | -0.0077 |
+| **AVG(4)** | **0.2163** | **0.2191** | **+0.0028 (+1.3%)** |
+
+**+0.0028 against a 0.0084 seed-noise floor — inside noise.** The retrain would have cost +60
+GPU-hours (+47%, almost all of it in the 8192 phases) and weeks of calendar time. **Removed from
+the plan.**
+
+The hypothesis was reasonable: it explained both halves of the paradox (local attention is fine for
+MLM, poor for a pooled document vector) and NeoDictaBERT genuinely is 28/28 global with RMSNorm,
+SwiGLU and untied embeddings. But it was inference from correlation, and the decisive evidence is
+B1, not 0b: **contrastive adaptation reached 89% of NDB with zero architecture change.** NDB's
+global attention and NDB's good geometry co-occur in their model; the retrieval strength was
+attributed to the wrong one.
+
+*Caveat:* this runs global attention on weights trained with local attention, a train/test
+mismatch, so it is not a perfect proxy for pretraining that way. The logic still holds — if local
+attention were starving the pooled vector, granting full global range should have helped even under
+mismatch, since strictly more information is available. It did not move.
+
+**Consequence for the remaining 12%:** it is not pretraining and not architecture. scifact (47% of
+the gap) and fiqa (28%) are both TRAINED datasets, so the levers are the SFT recipe (A1's negatives
+gave scifact +16%, A2's rebalance gave fiqa +25%) and a HARDER contrastive objective — more
+negatives via GradCache, crop-based positives instead of dropout, lower temperature. Not more of
+the same.
