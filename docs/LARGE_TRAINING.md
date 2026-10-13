@@ -403,7 +403,7 @@ cosine, warmup 0.05, 10 epochs, max_len 512, seed 17), so every delta is attribu
 | **A1** negatives 32 -> 256 | 0.0151 | 0.1778 | 0.3057 | 0.0622 | **0.3694** | **0.1860** |
 | **A2** nfcorpus capped to 15k | 0.0617 | **0.2048** | 0.2292 | **0.0701** | 0.3330 | 0.1798 |
 | **A3** mean pooling | **0.0637** | 0.1661 | 0.2939 | 0.0678 | 0.3415 | **0.1866** |
-| *best-of-breed (if combinable)* | 0.0637 | 0.2048 | 0.3144 | 0.0701 | 0.3694 | *0.2045* |
+| *per-dataset maxima (NOT an achievable score)* | 0.0637 | 0.2048 | 0.3144 | 0.0701 | 0.3694 | *0.2045* |
 | NeoDictaBERT | 0.4461 | 0.2896 | 0.3403 | 0.0908 | 0.4831 | 0.3300 |
 
 **The three interventions are largely ORTHOGONAL — each wins a different dataset.** No single arm
@@ -420,9 +420,22 @@ dataset (arguana +322%, fiqa +25%, scidocs +12%) and cost nfcorpus 27% (0.3144 -
 nfcorpus it is the best arm (0.1674 vs baseline 0.1398, +20%). Confirms the monoculture hypothesis:
 the model was trading general retrieval for nfcorpus-specific fit.
 
-**A3 (mean pooling) fixes arguana and is the best single arm.** 0.0146 -> 0.0637, 4.4x.
+**A3 (mean pooling) is the best single arm and lifts arguana 4.4x** (0.0146 -> 0.0637) — but
+**"fixes" is wrong: BASE scores 0.2201 on arguana, so large is still 3.5x WORSE than base there.**
+See the geometry section below; this is the sharpest finding in the sweep.
 
-### The CLS space is measurably degenerate — `num_self_excluded` proves it
+### NOISE FLOOR — read the deltas against this first
+
+Base's own cls runs on this same v0801 corpus span **0.1630-0.1715 across seeds, a 0.0084 spread**.
+Against that: A1 (+0.0113) and A3 (+0.0119) are only just outside it, and **A2 (+0.0051) is INSIDE
+it**. The `0.2045` row above sums per-dataset maxima, each partly a favourable draw, and includes
+baseline's *uncapped* nfcorpus that a capped run cannot have — it is a ceiling illustration, not a
+prediction. A realistic combined arm is **~0.19-0.20**.
+
+What IS robustly outside noise: arguana 0.0146 -> 0.064 (4.4x), A2's nfcorpus -27%, and A2's fiqa
+0.164 -> 0.205 (base fiqa is stable at 0.113-0.118 across seeds, so +0.041 is real).
+
+### The CLS space is measurably degenerate — `num_self_excluded` corroborates it
 
 ArguAna queries are themselves documents in the corpus, so a model with usable embeddings retrieves
 the query's own identical text as a top hit; the eval then excludes it (`exclude_self: auto`) and
@@ -435,8 +448,13 @@ reports the count. Finding your own exact text is the easiest possible retrieval
 | A2 | cls | 348 (25%) |
 | A3 | **mean** | 845 (**60%**) |
 
-**With CLS the model fails to match a document to itself 93% of the time.** That is an independent
-confirmation of the anisotropy 0.9997 measurement in `docs/RETRIEVAL_EVAL.md` — the CLS vector is
+**With CLS the model fails to match a document to itself 93% of the time.** Caveats before leaning
+on this: baseline and A1 report the *identical* count (98), which for two differently-trained models
+suggests either hubness (the same ~100 hub docs fill top-100 for every query — which would
+strengthen the claim) or an eval artifact in how `exclude_self: auto` counts; and query/doc towers
+diverge during SFT, so low self-retrieval could be tower drift rather than anisotropy. Same
+practical conclusion either way (CLS is fragile under this SFT), different mechanism. Read as
+corroborating the anisotropy 0.9997 measurement in `docs/RETRIEVAL_EVAL.md` — the CLS vector is
 near-degenerate, and the locked protocol trains on exactly that vector. Mean pooling recovers it
 to 60%. This also explains why arguana specifically collapsed: it is the only dataset with no
 training pairs, so it cannot learn its way around a bad starting geometry.
