@@ -26,5 +26,5 @@ export NVCC_PREPEND_FLAGS="${NVCC_PREPEND_FLAGS:-}"
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate bert-b200
 cd /home/nlp/achimoa/workspace/HebrewModernBERT
-python scripts/mine_hebrew_weak_pairs.py --out data/simcse/hebrew_weak_pairs.jsonl
-wc -l data/simcse/hebrew_weak_pairs.jsonl
+python scripts/mine_hebrew_weak_pairs.py --granularity "${GRAN:-both}" --out "${OUT:-data/simcse/hebrew_weak_pairs.jsonl}"
+wc -l "${OUT:-data/simcse/hebrew_weak_pairs.jsonl}"

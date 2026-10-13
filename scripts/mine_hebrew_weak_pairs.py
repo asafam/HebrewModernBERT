@@ -49,6 +49,65 @@ SOURCES = {
 }
 
 
+def _is_header(line, max_chars=40, max_words=6):
+    """Wikipedia section headers sit on their own line: short, few words, no sentence punctuation.
+
+    Verified against the raw dump: an article on 'דלק' yields היסטוריה / הקמת החברה /
+    גידול, התרחבות והפרטה / במאה ה-21 / קרן דלק למדע לחינוך ולתרבות -- all caught by this rule,
+    while every body paragraph (104-1107 chars) is rejected.
+    """
+    t = line.strip()
+    return bool(t) and len(t) <= max_chars and len(t.split()) <= max_words \
+        and not t.endswith((".", ":", "!", "?", ",", ";"))
+
+
+def mine_sections(path, min_body=200, max_body=4000, limit=None):
+    """Yield ('<title> - <section header>', section_body) pairs.
+
+    Multiplies the pair count: one article gives one title<->body pair but typically 4-8 sections.
+    The query is also RICHER than a bare title -- '<article> - <section>' reads like a real search
+    query, which is closer to what BeIR asks than either piece alone.
+    """
+    n = 0
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        for line in f:
+            if limit is not None and n >= limit:
+                return
+            try:
+                text = json.loads(line).get("text") or ""
+            except json.JSONDecodeError:
+                continue
+            lines = text.split("\n")
+            if not lines:
+                continue
+            title = lines[0].strip()
+            if not title:
+                continue
+            nt = _norm(title)
+            cur_hdr, buf = None, []
+            for ln in lines[1:]:
+                if _is_header(ln):
+                    # flush the previous section before starting a new one
+                    if cur_hdr and buf:
+                        body = "\n".join(buf).strip()
+                        if len(body) >= min_body:
+                            yield f"{title} - {cur_hdr}", body[:max_body]
+                            n += 1
+                            if limit is not None and n >= limit:
+                                return
+                    nl = _norm(ln)
+                    # skip the title restatement that opens every article
+                    cur_hdr = None if (nt and nl and (nt in nl or nl in nt)) else ln.strip()
+                    buf = []
+                else:
+                    buf.append(ln)
+            if cur_hdr and buf:
+                body = "\n".join(buf).strip()
+                if len(body) >= min_body:
+                    yield f"{title} - {cur_hdr}", body[:max_body]
+                    n += 1
+
+
 def mine_title_body(path, min_title=8, max_title=250, min_body=200, max_body=4000, limit=None):
     """Yield (title, body) where the raw text is 'TITLE\\n<body>'.
 
@@ -92,6 +151,10 @@ def main():
     ap.add_argument("--per-source", type=int, default=None,
                     help="cap per source; default = all. Keeps one source from dominating, the "
                          "mistake the retrieval SFT made at 88% nfcorpus.")
+    ap.add_argument("--granularity", choices=["article", "section", "both"], default="both",
+                    help="article: title <-> whole body (one pair per doc). section: "
+                         "'<title> - <section>' <-> section body (4-8 per doc, richer query). "
+                         "both: emit both. News has no sections, so it is always article-level.")
     ap.add_argument("--seed", type=int, default=17)
     args = ap.parse_args()
     random.seed(args.seed)
@@ -105,11 +168,20 @@ def main():
                 print(f"  SKIP {name}: {path} not found")
                 continue
             n = 0
-            for title, body in mine_title_body(path, limit=args.per_source):
-                out.write(json.dumps({"query": title, "document": body}, ensure_ascii=False) + "\n")
-                n += 1
-                if n % 100_000 == 0:
-                    print(f"  {name}: {n:,}")
+            gens = []
+            if args.granularity in ("article", "both"):
+                gens.append(("article", mine_title_body(path, limit=args.per_source)))
+            # Only wikipedia has section structure; news articles are headline + flat body.
+            if args.granularity in ("section", "both") and "ikipedia" in rel:
+                gens.append(("section", mine_sections(path, limit=args.per_source)))
+            for kind, gen in gens:
+                k = 0
+                for q, body in gen:
+                    out.write(json.dumps({"query": q, "document": body}, ensure_ascii=False) + "\n")
+                    n += 1; k += 1
+                    if n % 100_000 == 0:
+                        print(f"  {name}: {n:,}")
+                print(f"    {name}/{kind}: {k:,}")
             counts[name] = n
             print(f"  {name}: {n:,} pairs")
 
