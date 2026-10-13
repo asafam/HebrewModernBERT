@@ -85,10 +85,18 @@ PY
 # So at equal batch size this step costs roughly twice the activation memory, and bs 256 that A1
 # ran fine for BeIR does not fit here. The fix keeps bs 256 -- the negative pool is the whole point
 # of the run -- and buys the memory back from length and recomputation instead:
-#   ADAPT_LEN 256 (our --min-chars 200 filter is ~60-70 Hebrew tokens, so most docs fit) and
-#   --gradient_checkpointing. Adaptation at 256 then SFT at 512 is a mild length shift, and
-#   ModernBERT handles variable length natively via RoPE.
-# If it still OOMs, halve BS before lowering ADAPT_LEN further.
+#   ADAPT_LEN 256 -- our --min-chars 200 filter is ~60-70 Hebrew tokens, so most docs fit, and
+#   adaptation at 256 then SFT at 512 is a mild length shift that ModernBERT absorbs via RoPE.
+#
+# NOT gradient checkpointing: InfoNCEDualEncoder is a PreTrainedModel that never sets
+# supports_gradient_checkpointing, so HF raises "does not support gradient checkpointing" before
+# training starts (job 34975543). Adding it would mean editing a model class the Track A arms are
+# currently running against, which is not worth the risk for a yes/no first experiment. Revisit
+# together with GradCache when scaling the negative pool past 256.
+#
+# bs 256 / len 256 has NOT been tried yet: run 1 was 256/512 and missed by 512 MiB, run 2 died on
+# the checkpointing flag before training. Halving the length alone should therefore fit. If it
+# OOMs again, halve BS to 128 -- still 4x the locked protocol's 32 negatives.
 # ---- step 3: contrastive adaptation ----------------------------------------------------------
 cd $SIB
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
@@ -102,7 +110,6 @@ python src/model/dual_encoder/train_dual_encoder.py \
     --doc_model_name "$VARIANT" \
     --query_field query --document_field document \
     --max_length "${ADAPT_LEN:-256}" \
-    --gradient_checkpointing \
     --num_train_epochs "$EPOCHS" \
     --per_device_train_batch_size "$BS" \
     --gradient_accumulation_steps 1 \
