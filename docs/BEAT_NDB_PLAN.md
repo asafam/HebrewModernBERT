@@ -361,3 +361,46 @@ the leader before trusting it.
 | mE5-large | 0.3823 | next target |
 
 **0.1747 -> 0.3290 is +88%, and none of it required retraining the backbone.**
+
+---
+
+# Two decisive results: the adaptation VARIANT does not matter; the SFT MIX does
+
+## Adaptation-stage arms are all tied (all then get the identical locked SFT)
+
+| adaptation | arguana | fiqa | nfcorpus | scidocs | scifact | **AVG** |
+|---|---|---|---|---|---|---|
+| B1 dropout, 1M pairs | 0.4297 | 0.2408 | 0.3260 | 0.0787 | 0.4013 | 0.2953 |
+| E1 crop, bs 256 | 0.3832 | 0.2743 | 0.3237 | 0.0837 | 0.4107 | 0.2951 |
+| E2 crop, bs 512 | 0.3777 | 0.2757 | 0.3275 | 0.0840 | 0.4303 | 0.2990 |
+| G1 title<->body, 500k | 0.3940 | 0.2757 | 0.3223 | 0.0807 | 0.4382 | **0.3022** |
+
+**Spread 0.0071, inside the 0.0084 noise floor — statistically tied.** Harder positives (crop),
+more negatives (512) and asymmetric query-like positives (title<->body) each add nothing measurable
+over plain dropout SimCSE.
+
+**This refutes my own saturation theory's prescription.** The saturation was real (loss 5.17 ->
+0.0021 in ~200 steps) but the inference "therefore we need a harder task" was wrong. Fixing the
+collapse appears close to **binary**: once the space is spread, additional objective sophistication
+does not help. The cheapest possible adaptation is sufficient.
+
+*Not useless, though:* the per-dataset profiles differ systematically. Crop and title<->body trade
+arguana (0.38-0.39 vs 0.43) for fiqa (+0.035) and scifact (+0.037). That is a real, reproducible
+redistribution even where the average is flat.
+
+## The SFT mix is the second real lever, and TIGHTER is better
+
+| nfcorpus cap | nfcorpus | scifact | **AVG** |
+|---|---|---|---|
+| 110,575 (uncapped) | 0.3260 | 0.4013 | 0.2953 |
+| 50,000 | 0.2907 | 0.4434 | 0.3071 |
+| **15,000** | 0.2737 | **0.5360** | **0.3290** |
+
+Monotonic, and **opposite to my prediction** of an intermediate optimum: scifact gains more than
+nfcorpus loses, all the way down. Testing caps 8,000 and 4,000 (jobs 35206256/7).
+
+## Next: stack the two independent levers
+
+The adaptation variant and the SFT mix are orthogonal, so G1's better fiqa/scifact profile plus the
+rebalance should exceed D. Arithmetic: G1 at 0.3022 plus the rebalance's measured +0.0337 is ~0.336,
+**past NeoDictaBERT's 0.3300.** Launched as I-arms (35206260 title<->body, 35206261 crop-bs512).
